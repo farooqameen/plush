@@ -33,14 +33,15 @@ fun rasterize_triangle(framebuffer, width, height, v0, v1, v2) {
 
     // Precompute barycentric coordinate divisors
     let var area = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+    area = area.abs();
     if (area == 0) return; // Degenerate triangle
 
     // Scan through bounding box
     for (let var y = minY; y <= maxY; y = y + 1) {
         for (let var x = minX; x <= maxX; x = x + 1) {
             // Compute barycentric coordinates
-            let w0 = ((y1 - y2) * (x - x2) + (x2 - x1) * (y - y2));
-            let w1 = ((y2 - y0) * (x - x2) + (x0 - x2) * (y - y2));
+            let w0 = ((y1 - y2) * (x - x2) + (x2 - x1) * (y - y2)).abs();
+            let w1 = ((y2 - y0) * (x - x2) + (x0 - x2) * (y - y2)).abs();
             let w2 = area - w0 - w1;
 
             // Check if point is inside triangle
@@ -94,7 +95,7 @@ $window_draw_frame(window, framebuffer);
 start_time = $time_current_ms();
 
 // Rasterize triangle
-rasterize_triangle(framebuffer, width, height, a, d, b);
+rasterize_triangle(framebuffer, width, height, a, b, d);
 
 // Display elapsed time
 end_time = $time_current_ms() - start_time;

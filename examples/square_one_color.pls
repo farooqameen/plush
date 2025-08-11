@@ -45,15 +45,8 @@ fun rasterize_triangle(framebuffer, width, height, v0, v1, v2) {
 
             // Check if point is inside triangle
             if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)) {
-                // Normalize barycentric coordinates to [0,1]
-                let f0 = w0 / area;
-                let f1 = w1 / area;
-                let f2 = w2 / area;
-
-                let r = (f0 * 255).floor();
-                let g = (f1 * 255).floor();
-                let b = (f2 * 255).floor();
-                let rgb = (0xFF << 24) | (r << 16) | (g << 8) | b;
+                // Use a single color
+                let rgb = 0xFFFF0000;
                 let index = y * width + x;
                 framebuffer.write_u32(index, rgb);
             }
