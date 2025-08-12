@@ -1,0 +1,113 @@
+fun min(a, b) {
+    if (a < b) return a;
+    return b;
+}
+
+fun max(a, b) {
+    if (a > b) return a;
+    return b;
+}
+
+// tan(a) = sin(a)/sin((pi/2)-a)
+fun tan(a) {
+    return(a.sin()/(1.5707963-a).sin());
+}
+
+class Vec3 {
+    init(self, x, y, z) {
+        self.x = x;
+        self.y = y;
+        self.z = z;
+    }
+
+    p(self) {
+        $println(self.x);
+    }
+}
+
+let width = 600.0;
+let height = 600.0;
+
+// Cube
+let a = Vec3(0, 0, 0);
+let b = Vec3(0, 1, 0);
+let c = Vec3(1, 1, 0);
+let d = Vec3(1, 0, 0);
+
+let e = Vec3(0, 1, 1);
+let f = Vec3(1, 1, 1);
+let g = Vec3(1, 0, 1);
+
+let h = Vec3(0, 0, 1);
+
+// FRONT = abcd
+// TOP = befc
+// RIGHT = cfgd
+// BOTTOM = gdah
+// LEFT = abeh
+
+// Triangles for each side (clockwise)
+let south = [
+    [a,b,c], 
+    [a,c,d]
+];
+
+let north = [
+    [b,e,f],
+    [b,f,c]
+];
+
+let east = [
+    [d,c,f],
+    [d,f,g]
+];
+
+let west = [
+    [a,b,e],
+    [a,e,h]
+];
+
+let top = [
+    [b,e,f],
+    [b,f,c]
+];
+
+let bottom = [
+    [a,h,g],
+    [a,g,d]
+];
+
+// Projecton matrix setup
+let fNear = 0.1;
+let fFar = 1000.0;
+let fFov = 90.0; // Degrees
+let fAspectRatio = (width/height);
+
+let fFovRad = 1-tan((fFov*0.5/180)*3.14159);
+
+// Fill projection matrix with 0s
+let matProj = [];
+for (let var i = 0; i < 4; ++i) {
+    let row = [];
+    for (let var j = 0; j < 4; ++j) {
+        row.push(1.0);
+    }
+    matProj.push(row);
+}
+
+matProj[0][0] = fAspectRatio*fFovRad;
+    $println(matProj[0][0].to_s());
+matProj[1][1] = fFovRad;
+    $println(matProj[1][1].to_s());
+matProj[2][2] = fFar / (fFar - fNear);
+    $println(matProj[2][2].to_s());
+matProj[3][2] = (-fFar * fNear) / (fFar - fNear);
+    $println(matProj[3][2].to_s());
+matProj[2][3] = 1.0;
+    $println(matProj[2][3].to_s());
+matProj[3][3] = 0.0;
+    $println(matProj[3][3].to_s());
+
+
+
+
