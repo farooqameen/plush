@@ -114,9 +114,10 @@ fun multMatVec(i, m) {
     o.x = i.x * m[0][0] + i.y * m[1][0] + i.z * m[2][0] + m[3][0];
     o.y = i.x * m[0][1] + i.y * m[1][1] + i.z * m[2][1] + m[3][1];
     o.z = i.x * m[0][2] + i.y * m[1][2] + i.z * m[2][2] + m[3][2];
-    let w = i.x * m[0][3] + i.y * m[1][3] + i.z * m[2][3] + m [3][3];
+    let w = i.x * m[0][3] + i.y * m[1][3] + i.z * m[2][3] + m[3][3];
 
-    if (w != 0) {
+    $println("w: " + w.to_s());
+    if (w.floor() != 0) {
         o.x = o.x/w;
         o.y = o.y/w;
         o.z = o.z/w;
@@ -125,9 +126,23 @@ fun multMatVec(i, m) {
     return o;
 }
 
-let v1 = multMatVec(a, matProj);
-let v2 = multMatVec(b, matProj);
-let v3 = multMatVec(c, matProj);
+let var v1 = multMatVec(a, matProj);
+let var v2 = multMatVec(b, matProj);
+let var v3 = multMatVec(c, matProj);
+let var v4 = multMatVec(d, matProj);
+let var v5 = multMatVec(e, matProj);
+let var v6 = multMatVec(f, matProj);
+let var v7 = multMatVec(g, matProj);
+let var v8 = multMatVec(h, matProj);
+
+$println("v1: x=" + v1.x.to_s() + ", y=" + v1.y.to_s() + ", z=" + v1.z.to_s());
+$println("v2: x=" + v2.x.to_s() + ", y=" + v2.y.to_s() + ", z=" + v2.z.to_s());
+$println("v3: x=" + v3.x.to_s() + ", y=" + v3.y.to_s() + ", z=" + v3.z.to_s());
+$println("v4: x=" + v4.x.to_s() + ", y=" + v4.y.to_s() + ", z=" + v4.z.to_s());
+$println("v5: x=" + v5.x.to_s() + ", y=" + v5.y.to_s() + ", z=" + v5.z.to_s());
+$println("v6: x=" + v6.x.to_s() + ", y=" + v6.y.to_s() + ", z=" + v6.z.to_s());
+$println("v7: x=" + v7.x.to_s() + ", y=" + v7.y.to_s() + ", z=" + v7.z.to_s());
+$println("v8: x=" + v8.x.to_s() + ", y=" + v8.y.to_s() + ", z=" + v8.z.to_s());
 
 loop {
     let msg = $actor_recv();
