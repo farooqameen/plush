@@ -19,14 +19,10 @@ class Vec3 {
         self.y = y;
         self.z = z;
     }
-
-    p(self) {
-        $println(self.x);
-    }
 }
 
-let width = 600.0;
-let height = 600.0;
+let width = 800;
+let height = 600;
 
 // Cube
 let a = Vec3(0, 0, 0);
@@ -111,7 +107,10 @@ matProj[3][3] = 0.0;
 // Vec1 = i
 // Vec2 = o
 // matProj = m
-func multMatVec(i, o, m) {
+
+fun multMatVec(i, m) {
+    let o = Vec3(0, 0, 0);
+    
     o.x = i.x * m[0][0] + i.y * m[1][0] + i.z * m[2][0] + m[3][0];
     o.y = i.x * m[0][1] + i.y * m[1][1] + i.z * m[2][1] + m[3][1];
     o.z = i.x * m[0][2] + i.y * m[1][2] + i.z * m[2][2] + m[3][2];
@@ -122,6 +121,24 @@ func multMatVec(i, o, m) {
         o.y = o.y/w;
         o.z = o.z/w;
     }
+
+    return o;
 }
+
+let v1 = multMatVec(a, matProj);
+let v2 = multMatVec(b, matProj);
+let v3 = multMatVec(c, matProj);
+
+loop {
+    let msg = $actor_recv();
+
+    if (!(msg instanceof UIEvent)) {
+        continue;
+    }
+    if (msg.kind == 'CLOSE_WINDOW' || (msg.kind == 'KEY_DOWN' && msg.key == 'ESCAPE')) {
+        break;
+    }
+}
+
 
 
