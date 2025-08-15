@@ -1,3 +1,18 @@
+// Colors for each triangle (face)
+let face_colors = [
+    0xFFFF0000, // Red
+    0xFFFF0000, // Red
+    0xFF00FF00, // Green
+    0xFF00FF00, // Green
+    0xFF0000FF, // Blue
+    0xFF0000FF, // Blue
+    0xFFFFFF00, // Yellow
+    0xFFFFFF00, // Yellow
+    0xFF00FFFF, // Cyan
+    0xFF00FFFF, // Cyan
+    0xFFFF00FF, // Magenta
+    0xFFFF00FF, // Magenta
+];
 fun min(a, b) {
     if (a < b) return a;
     return b;
@@ -133,11 +148,13 @@ for (let var i = 0; i < 8; ++i) {
     screen_y.push((vars[i].y + 1) * 0.5 * HEIGHT);
 }
 
-// Create framebuffer
+// Create framebuffer and z-buffer
 let framebuffer = ByteArray.with_size(WIDTH * HEIGHT * 4);
+let zbuffer = Array.with_size(WIDTH * HEIGHT, 1e9); // Large initial value (far away)
 
-// Clear to black
+// Clear to black and reset z-buffer
 framebuffer.fill_u32(0, WIDTH * HEIGHT, 0xFF000000);
+for (let var i = 0; i < zbuffer.len; ++i) zbuffer[i] = 1e9;
 
 // Draw projected vertices as white pixels
 fun draw(x, y) {
@@ -205,9 +222,78 @@ let triangles = [
     [7, 5, 6], // hfg
 ];
 
+// Rasterize a triangle into a ByteArray framebuffer
+fun rasterize(framebuffer, zbuffer, width, height, v0, v1, v2, color) {
+    // Convert vertices to integer coordinates (already in screen space)
+    let x0 = v0.x.floor();
+    let y0 = v0.y.floor();
+    let z0 = v0.z;
+    let x1 = v1.x.floor();
+    let y1 = v1.y.floor();
+    let z1 = v1.z;
+    let x2 = v2.x.floor();
+    let y2 = v2.y.floor();
+    let z2 = v2.z;
+
+
+    // Compute bounding box
+    let minX = max(0, min(x0, min(x1, x2)));
+    let maxX = min(width - 1, max(x0, max(x1, x2)));
+    let minY = max(0, min(y0, min(y1, y2)));
+    let maxY = min(height - 1, max(y0, max(y1, y2)));
+
+    // Precompute barycentric coordinate divisors
+    let area = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+    if (area == 0) return; // Degenerate triangle
+
+    // Scan through bounding box
+    for (let var y = minY; y <= maxY; y = y + 1) {
+        for (let var x = minX; x <= maxX; x = x + 1) {
+            // Compute barycentric coordinates
+            let w0 = (y1 - y2) * (x - x2) + (x2 - x1) * (y - y2);
+            let w1 = (y2 - y0) * (x - x2) + (x0 - x2) * (y - y2);
+            let w2 = area - w0 - w1;
+
+            // Check if point is inside triangle (handle both windings)
+            if ((area > 0 && w0 >= 0 && w1 >= 0 && w2 >= 0) || (area < 0 && w0 <= 0 && w1 <= 0 && w2 <= 0)) {
+                // Interpolate z
+                let f0 = w0 / area;
+                let f1 = w1 / area;
+                let f2 = w2 / area;
+                let z = f0 * z0 + f1 * z1 + f2 * z2;
+                let index = y * width + x;
+                if (z < zbuffer[index]) {
+                    zbuffer[index] = z;
+                    framebuffer.write_u32(index, color);
+                }
+            }
+        }
+    }
+}
+
 for (let var i = 0; i < triangles.len; ++i) {
     let t = triangles[i];
+    let color = face_colors[i];
+    // Backface culling: use pre-projection (view space) coordinates
+    let v0w = vars[t[0]];
+    let v1w = vars[t[1]];
+    let v2w = vars[t[2]];
+    let ux = v1w.x - v0w.x;
+    let uy = v1w.y - v0w.y;
+    let uz = v1w.z - v0w.z;
+    let vx = v2w.x - v0w.x;
+    let vy = v2w.y - v0w.y;
+    let vz = v2w.z - v0w.z;
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    // Camera looks down -z, so cull if normal.z > 0
+    if (nz > 0) continue;
     drawtriangle(screen_x[t[0]], screen_y[t[0]], screen_x[t[1]], screen_y[t[1]], screen_x[t[2]], screen_y[t[2]]);
+    let v0 = Vec3(screen_x[t[0]], screen_y[t[0]], vars[t[0]].z);
+    let v1 = Vec3(screen_x[t[1]], screen_y[t[1]], vars[t[1]].z);
+    let v2 = Vec3(screen_x[t[2]], screen_y[t[2]], vars[t[2]].z);
+    rasterize(framebuffer, zbuffer, WIDTH, HEIGHT, v0, v1, v2, color);
 }
 
 // Draw in a window
@@ -248,10 +334,15 @@ loop {
     }
 
     framebuffer.fill_u32(0, WIDTH*HEIGHT, 0xFF000000);
+    for (let var i = 0; i < zbuffer.len; ++i) zbuffer[i] = 1e9;
 
     for (let var i = 0; i < triangles.len; ++i) {
         let t = triangles[i];
-        drawtriangle(screen_x[t[0]], screen_y[t[0]], screen_x[t[1]], screen_y[t[1]], screen_x[t[2]], screen_y[t[2]]);
+        let color = face_colors[i];
+        let v0 = Vec3(screen_x[t[0]], screen_y[t[0]], vars[t[0]].z);
+        let v1 = Vec3(screen_x[t[1]], screen_y[t[1]], vars[t[1]].z);
+        let v2 = Vec3(screen_x[t[2]], screen_y[t[2]], vars[t[2]].z);
+        rasterize(framebuffer, zbuffer, WIDTH, HEIGHT, v0, v1, v2, color);
     }
 
     $window_draw_frame(window, framebuffer);
