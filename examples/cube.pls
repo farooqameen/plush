@@ -204,6 +204,7 @@ let triangles = [
     [7, 4, 5], // hef
     [7, 5, 6], // hfg
 ];
+
 for (let var i = 0; i < triangles.len; ++i) {
     let t = triangles[i];
     drawtriangle(screen_x[t[0]], screen_y[t[0]], screen_x[t[1]], screen_y[t[1]], screen_x[t[2]], screen_y[t[2]]);
@@ -228,7 +229,6 @@ loop {
     matRotX[2][1] = -((fTheta * 0.5).sin());
     matRotX[2][2] = cos(fTheta * 0.5);
 
-    
     for (let var i = 0; i < 8; ++i) {
         // Reset vars from original vertices
         vars[i] = vertices[i];
