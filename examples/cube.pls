@@ -135,7 +135,6 @@ matRotZ[1][1] = cos(fTheta);
 matRotZ[2][2] = 1.0;
 matRotZ[3][3] = 1.0;
 
-
 matRotX[0][0] = 1.0;
 matRotX[1][1] = cos(fTheta * 0.5);
 matRotX[1][2] = (fTheta * 0.5).sin();
@@ -155,7 +154,6 @@ fun multMatVec(i, m) {
     o.z = i.x * m[0][2] + i.y * m[1][2] + i.z * m[2][2] + m[3][2];
     let w = i.x * m[0][3] + i.y * m[1][3] + i.z * m[2][3] + m[3][3];
 
-    $println("w: " + w.to_s());
     if (w.floor() != 0) {
         o.x = o.x/w;
         o.y = o.y/w;
@@ -193,22 +191,22 @@ v7 = multMatVec(Vec3(v7.x, v7.y, v7.z + 3), matProj);
 v8 = multMatVec(Vec3(v8.x, v8.y, v8.z + 3), matProj);
 
 // Map projected coordinates to screen space (centered)
-let v1_screen_x = (v1.x + 1) * 0.4 * width;
-let v1_screen_y = (v1.y + 1) * 0.4 * height;
-let v2_screen_x = (v2.x + 1) * 0.4 * width;
-let v2_screen_y = (v2.y + 1) * 0.4 * height;
-let v3_screen_x = (v3.x + 1) * 0.4 * width;
-let v3_screen_y = (v3.y + 1) * 0.4 * height;
-let v4_screen_x = (v4.x + 1) * 0.4 * width;
-let v4_screen_y = (v4.y + 1) * 0.4 * height;
-let v5_screen_x = (v5.x + 1) * 0.4 * width;
-let v5_screen_y = (v5.y + 1) * 0.4 * height;
-let v6_screen_x = (v6.x + 1) * 0.4 * width;
-let v6_screen_y = (v6.y + 1) * 0.4 * height;
-let v7_screen_x = (v7.x + 1) * 0.4 * width;
-let v7_screen_y = (v7.y + 1) * 0.4 * height;
-let v8_screen_x = (v8.x + 1) * 0.4 * width;
-let v8_screen_y = (v8.y + 1) * 0.4 * height;
+let var v1_screen_x = (v1.x + 1) * 0.4 * width;
+let var v1_screen_y = (v1.y + 1) * 0.4 * height;
+let var v2_screen_x = (v2.x + 1) * 0.4 * width;
+let var v2_screen_y = (v2.y + 1) * 0.4 * height;
+let var v3_screen_x = (v3.x + 1) * 0.4 * width;
+let var v3_screen_y = (v3.y + 1) * 0.4 * height;
+let var v4_screen_x = (v4.x + 1) * 0.4 * width;
+let var v4_screen_y = (v4.y + 1) * 0.4 * height;
+let var v5_screen_x = (v5.x + 1) * 0.4 * width;
+let var v5_screen_y = (v5.y + 1) * 0.4 * height;
+let var v6_screen_x = (v6.x + 1) * 0.4 * width;
+let var v6_screen_y = (v6.y + 1) * 0.4 * height;
+let var v7_screen_x = (v7.x + 1) * 0.4 * width;
+let var v7_screen_y = (v7.y + 1) * 0.4 * height;
+let var v8_screen_x = (v8.x + 1) * 0.4 * width;
+let var v8_screen_y = (v8.y + 1) * 0.4 * height;
 
 $println("v1: x=" + v1.x.to_s() + ", y=" + v1.y.to_s() + ", z=" + v1.z.to_s());
 $println("v2: x=" + v2.x.to_s() + ", y=" + v2.y.to_s() + ", z=" + v2.z.to_s());
@@ -308,10 +306,88 @@ let window = $window_create(width, height, "Render", 0);
 $window_draw_frame(window, framebuffer);
 
 loop {
+    time = $time_current_ms();
+    fTheta = 0.001 * time;
+    
     let msg = $actor_recv();
+    
+    matRotZ[0][0] = cos(fTheta);
+    matRotZ[0][1] = (fTheta).sin();
+    matRotZ[1][0] = -((fTheta).sin());
+    matRotZ[1][1] = cos(fTheta);
+
+    matRotX[1][1] = cos(fTheta * 0.5);
+    matRotX[1][2] = (fTheta * 0.5).sin();
+    matRotX[2][1] = -((fTheta * 0.5).sin());
+    matRotX[2][2] = cos(fTheta * 0.5);
+
+    v1 = multMatVec(a, matRotZ);
+    v2 = multMatVec(b, matRotZ);
+    v3 = multMatVec(c, matRotZ);
+    v4 = multMatVec(d, matRotZ);
+    v5 = multMatVec(e, matRotZ);
+    v6 = multMatVec(f, matRotZ);
+    v7 = multMatVec(g, matRotZ);
+    v8 = multMatVec(h, matRotZ);
+
+    v1 = multMatVec(v1, matRotX);
+    v2 = multMatVec(v2, matRotX);
+    v3 = multMatVec(v3, matRotX);
+    v4 = multMatVec(v4, matRotX);
+    v5 = multMatVec(v5, matRotX);
+    v6 = multMatVec(v6, matRotX);
+    v7 = multMatVec(v7, matRotX);
+    v8 = multMatVec(v8, matRotX);
+
+    // Map projected coordinates to screen space (centered)
+    v1_screen_y = (v1.y + 1) * 0.4 * height;
+    v2_screen_x = (v2.x + 1) * 0.4 * width;
+    v2_screen_y = (v2.y + 1) * 0.4 * height;
+    v3_screen_x = (v3.x + 1) * 0.4 * width;
+    v3_screen_y = (v3.y + 1) * 0.4 * height;
+    v4_screen_x = (v4.x + 1) * 0.4 * width;
+    v4_screen_y = (v4.y + 1) * 0.4 * height;
+    v5_screen_x = (v5.x + 1) * 0.4 * width;
+    v5_screen_y = (v5.y + 1) * 0.4 * height;
+    v6_screen_x = (v6.x + 1) * 0.4 * width;
+    v6_screen_y = (v6.y + 1) * 0.4 * height;
+    v7_screen_x = (v7.x + 1) * 0.4 * width;
+    v7_screen_y = (v7.y + 1) * 0.4 * height;
+    v8_screen_x = (v8.x + 1) * 0.4 * width;
+    v8_screen_y = (v8.y + 1) * 0.4 * height;
+
+    framebuffer.fill_u32(0, width * height, 0xFF000000);
+
+    drawtriangle(v1_screen_x, v1_screen_y, v2_screen_x, v2_screen_y, v3_screen_x, v3_screen_y);
+    // Draw additional triangles as per a-h = v1-v8 mapping
+    // acd: a=v1, c=v3, d=v4
+    drawtriangle(v1_screen_x, v1_screen_y, v3_screen_x, v3_screen_y, v4_screen_x, v4_screen_y);
+    // bef: b=v2, e=v5, f=v6
+    drawtriangle(v2_screen_x, v2_screen_y, v5_screen_x, v5_screen_y, v6_screen_x, v6_screen_y);
+    // bfc: b=v2, f=v6, c=v3
+    drawtriangle(v2_screen_x, v2_screen_y, v6_screen_x, v6_screen_y, v3_screen_x, v3_screen_y);
+    // dcf: d=v4, c=v3, f=v6
+    drawtriangle(v4_screen_x, v4_screen_y, v3_screen_x, v3_screen_y, v6_screen_x, v6_screen_y);
+    // dfg: d=v4, f=v6, g=v7
+    drawtriangle(v4_screen_x, v4_screen_y, v6_screen_x, v6_screen_y, v7_screen_x, v7_screen_y);
+    // abe: a=v1, b=v2, e=v5
+    drawtriangle(v1_screen_x, v1_screen_y, v2_screen_x, v2_screen_y, v5_screen_x, v5_screen_y);
+    // abh: a=v1, b=v2, h=v8
+    drawtriangle(v1_screen_x, v1_screen_y, v2_screen_x, v2_screen_y, v8_screen_x, v8_screen_y);
+
+    // ahg: a=v1, h=v8, g=v7
+    drawtriangle(v1_screen_x, v1_screen_y, v8_screen_x, v8_screen_y, v7_screen_x, v7_screen_y);
+    // agd: a=v1, g=v7, d=v4
+    drawtriangle(v1_screen_x, v1_screen_y, v7_screen_x, v7_screen_y, v4_screen_x, v4_screen_y);
+
+    // hef
+    drawtriangle(v8_screen_x, v8_screen_y, v5_screen_x, v5_screen_y, v6_screen_x, v6_screen_y);
+    // hfg: b=v2, f=v6, c=v3 (duplicate, but included as per request)
+    drawtriangle(v8_screen_x, v8_screen_y, v6_screen_x, v6_screen_y, v8_screen_x, v8_screen_y);
+
+    $window_draw_frame(window, framebuffer);
 
     if (!(msg instanceof UIEvent)) {
-        fTheta = $time_current_ms();
         continue;
     }
     if (msg.kind == 'CLOSE_WINDOW' || (msg.kind == 'KEY_DOWN' && msg.key == 'ESCAPE')) {
