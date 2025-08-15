@@ -13,6 +13,10 @@ fun tan(a) {
     return(a.sin()/(1.5707963-a).sin());
 }
 
+fun cos(a) {
+    return((a + 1.5707963).sin());
+}
+
 class Vec3 {
     init(self, x, y, z) {
         self.x = x;
@@ -73,6 +77,9 @@ let bottom = [
     [a,g,d]
 ];
 
+let var time = $time_current_ms();
+let var fTheta = 1.0 * time;
+
 // Projecton matrix setup
 let fNear = 0.1;
 let fFar = 1000.0;
@@ -102,6 +109,40 @@ matProj[2][3] = 1.0;
 matProj[3][2] = (-fFar * fNear) / (fFar - fNear);
     $println(matProj[3][2].to_s());
 
+let matRotZ = [];
+for (let var i = 0; i < 4; ++i) {
+    let row = [];
+    for (let var j = 0; j < 4; ++j) {
+        row.push(0.0);
+    }
+    matRotZ.push(row);
+}
+
+let matRotX = [];
+for (let var i = 0; i < 4; ++i) {
+    let row = [];
+    for (let var j = 0; j < 4; ++j) {
+        row.push(0.0);
+    }
+    matRotX.push(row);
+}
+
+// Rotation Z
+matRotZ[0][0] = cos(fTheta);
+matRotZ[0][1] = (fTheta).sin();
+matRotZ[1][0] = -((fTheta).sin());
+matRotZ[1][1] = cos(fTheta);
+matRotZ[2][2] = 1.0;
+matRotZ[3][3] = 1.0;
+
+
+matRotX[0][0] = 1.0;
+matRotX[1][1] = cos(fTheta * 0.5);
+matRotX[1][2] = (fTheta * 0.5).sin();
+matRotX[2][1] = -((fTheta * 0.5).sin());
+matRotX[2][2] = cos(fTheta * 0.5);
+matRotX[3][3] = 1.0;
+
 // Vec1 = i
 // Vec2 = o
 // matProj = m
@@ -124,14 +165,32 @@ fun multMatVec(i, m) {
     return o;
 }
 
-let var v1 = multMatVec(Vec3(a.x, a.y, a.z + 3), matProj);
-let var v2 = multMatVec(Vec3(b.x, b.y, b.z + 3), matProj);
-let var v3 = multMatVec(Vec3(c.x, c.y, c.z + 3), matProj);
-let var v4 = multMatVec(Vec3(d.x, d.y, d.z + 3), matProj);
-let var v5 = multMatVec(Vec3(e.x, e.y, e.z + 3), matProj);
-let var v6 = multMatVec(Vec3(f.x, f.y, f.z + 3), matProj);
-let var v7 = multMatVec(Vec3(g.x, g.y, g.z + 3), matProj);
-let var v8 = multMatVec(Vec3(h.x, h.y, h.z + 3), matProj);
+let var v1 = multMatVec(a, matRotZ);
+let var v2 = multMatVec(b, matRotZ);
+let var v3 = multMatVec(c, matRotZ);
+let var v4 = multMatVec(d, matRotZ);
+let var v5 = multMatVec(e, matRotZ);
+let var v6 = multMatVec(f, matRotZ);
+let var v7 = multMatVec(g, matRotZ);
+let var v8 = multMatVec(h, matRotZ);
+
+v1 = multMatVec(v1, matRotX);
+v2 = multMatVec(v2, matRotX);
+v3 = multMatVec(v3, matRotX);
+v4 = multMatVec(v4, matRotX);
+v5 = multMatVec(v5, matRotX);
+v6 = multMatVec(v6, matRotX);
+v7 = multMatVec(v7, matRotX);
+v8 = multMatVec(v8, matRotX);
+
+v1 = multMatVec(Vec3(v1.x, v1.y, v1.z + 3), matProj);
+v2 = multMatVec(Vec3(v2.x, v2.y, v2.z + 3), matProj);
+v3 = multMatVec(Vec3(v3.x, v3.y, v3.z + 3), matProj);
+v4 = multMatVec(Vec3(v4.x, v4.y, v4.z + 3), matProj);
+v5 = multMatVec(Vec3(v5.x, v5.y, v5.z + 3), matProj);
+v6 = multMatVec(Vec3(v6.x, v6.y, v6.z + 3), matProj);
+v7 = multMatVec(Vec3(v7.x, v7.y, v7.z + 3), matProj);
+v8 = multMatVec(Vec3(v8.x, v8.y, v8.z + 3), matProj);
 
 // Map projected coordinates to screen space (centered)
 let v1_screen_x = (v1.x + 1) * 0.4 * width;
@@ -252,6 +311,7 @@ loop {
     let msg = $actor_recv();
 
     if (!(msg instanceof UIEvent)) {
+        fTheta = $time_current_ms();
         continue;
     }
     if (msg.kind == 'CLOSE_WINDOW' || (msg.kind == 'KEY_DOWN' && msg.key == 'ESCAPE')) {
