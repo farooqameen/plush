@@ -106,7 +106,6 @@ fun multMatVec(i, m) {
     if (w.floor() != 0) {
         o.x = o.x/w;
         o.y = o.y/w;
-        o.z = o.z/w;
     }
 
     return o;
@@ -200,9 +199,61 @@ for (let var i = 0; i < triangles.len; ++i) {
     drawtriangle(vars[t[0]], vars[t[1]], vars[t[2]]);
 }
 
+fun rasterize_triangle(framebuffer, width, height, v0, v1, v2, color) {
+    // Convert vertices to integer coordinates
+    let x0 = v0.x.floor();
+    let y0 = v0.y.floor();
+    let x1 = v1.x.floor();
+    let y1 = v1.y.floor();
+    let x2 = v2.x.floor();
+    let y2 = v2.y.floor();
+
+    // Compute bounding box
+    let minX = max(0, min(x0, min(x1, x2)));
+    let maxX = min(width - 1, max(x0, max(x1, x2)));
+    let minY = max(0, min(y0, min(y1, y2)));
+    let maxY = min(height - 1, max(y0, max(y1, y2)));
+
+    // Precompute barycentric coordinate divisors
+    let area = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+    if (area == 0) return; // Degenerate triangle
+
+    // Scan through bounding box
+    for (let var y = minY; y <= maxY; y = y + 1) {
+        for (let var x = minX; x <= maxX; x = x + 1) {
+            // Compute barycentric coordinates
+            let w0 = (y1 - y2) * (x - x2) + (x2 - x1) * (y - y2);
+            let w1 = (y2 - y0) * (x - x2) + (x0 - x2) * (y - y2);
+            let w2 = area - w0 - w1;
+
+            // Check if point is inside triangle. Respect triangle winding by
+            // comparing barycentric weights with the sign of `area`.
+            if ((area > 0 && w0 >= 0 && w1 >= 0 && w2 >= 0) ||
+                (area < 0 && w0 <= 0 && w1 <= 0 && w2 <= 0)) {
+                let index = y * width + x;
+                framebuffer.write_u32(index, color);
+            }
+        }
+    }
+}
+
+let color = [
+    0xFFFF0000,
+    0xFFFF0000,
+    0xFF00FF00,
+    0xFF00FF00,
+    0xFF0000FF,
+    0xFF0000FF,
+    0xFFFFFF00,
+    0xFFFFFF00,
+    0xFFFF00FF,
+    0xFFFF00FF,
+    0xFF00FFFF,
+    0xFF00FFFF
+];
+
 // Draw in a window
 let window = $window_create(WIDTH, HEIGHT, "Cube", 0);
-
 $window_draw_frame(window, framebuffer);
 
 loop {
@@ -239,6 +290,11 @@ loop {
 
     for (let var i = 0; i < triangles.len; ++i) {
         let t = triangles[i];
+        rasterize_triangle(framebuffer, WIDTH, HEIGHT, vars[t[0]], vars[t[1]], vars[t[2]], color[i]);
+    }
+
+    for (let var i = 0; i < triangles.len; ++i) {
+        let t = triangles[i];
         drawtriangle(vars[t[0]], vars[t[1]], vars[t[2]]);
     }
 
@@ -256,5 +312,5 @@ loop {
         break;
     }
     
-    $actor_sleep(16);
+    $actor_sleep(33);
 }
