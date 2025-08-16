@@ -125,12 +125,12 @@ for (let var i = 0; i < 8; ++i) {
     vars[i] = multMatVec(Vec3(vars[i].x, vars[i].y, vars[i].z + 3), matProj);
 }
 
-// Map projected coordinates to screen space (centered) using a loop
-let var screen_x = [];
-let var screen_y = [];
 for (let var i = 0; i < 8; ++i) {
-    screen_x.push((vars[i].x + 1) * 0.5 * WIDTH);
-    screen_y.push((vars[i].y + 1) * 0.5 * HEIGHT);
+    vars[i] = Vec3(
+        (vars[i].x + 1) * 0.5 * WIDTH,
+        (vars[i].y + 1) * 0.5 * HEIGHT,
+        vars[i].z
+    );
 }
 
 // Create framebuffer
@@ -139,22 +139,12 @@ let framebuffer = ByteArray.with_size(WIDTH * HEIGHT * 4);
 // Clear to black
 framebuffer.fill_u32(0, WIDTH * HEIGHT, 0xFF000000);
 
-// Draw projected vertices as white pixels
-fun draw(x, y) {
-    let ix = x.floor();
-    let iy = y.floor();
-    if (ix >= 0 && ix < WIDTH && iy >= 0 && iy < HEIGHT) {
-        let idx = (iy * WIDTH + ix);
-        framebuffer.write_u32(idx, 0xFFFFFFFF);
-    }
-}
-
-// Draw a line between (x0, y0) and (x1, y1) using Bresenham's algorithm
-fun drawline(x0, y0, x1, y1) {
-    let ix0 = x0.floor();
-    let iy0 = y0.floor();
-    let ix1 = x1.floor();
-    let iy1 = y1.floor();
+// Draw a line between v0(x0, y0) and v1(x1, y1) using Bresenham's algorithm
+fun drawline(v0, v1) {
+    let ix0 = v0.x.floor();
+    let iy0 = v0.y.floor();
+    let ix1 = v1.x.floor();
+    let iy1 = v1.y.floor();
 
     let dx = (ix1 - ix0).abs();
     let dy = -(iy1 - iy0).abs();
@@ -183,13 +173,13 @@ fun drawline(x0, y0, x1, y1) {
 }
 
 // Draw a triangle by drawing its three edges
-fun drawtriangle(x0, y0, x1, y1, x2, y2) {
-    drawline(x0, y0, x1, y1);
-    drawline(x1, y1, x2, y2);
-    drawline(x2, y2, x0, y0);
+fun drawtriangle(v0, v1, v2) {
+    drawline(v0, v1);
+    drawline(v1, v2);
+    drawline(v2, v0);
 }
 
-// Indices for each triangle (using screen_x/y arrays)
+// Indices for each triangle
 let triangles = [
     [0, 1, 2], // abc
     [0, 2, 3], // acd
@@ -207,7 +197,7 @@ let triangles = [
 
 for (let var i = 0; i < triangles.len; ++i) {
     let t = triangles[i];
-    drawtriangle(screen_x[t[0]], screen_y[t[0]], screen_x[t[1]], screen_y[t[1]], screen_x[t[2]], screen_y[t[2]]);
+    drawtriangle(vars[t[0]], vars[t[1]], vars[t[2]]);
 }
 
 // Draw in a window
@@ -230,11 +220,9 @@ loop {
     matRotX[2][2] = cos(fTheta * 0.5);
 
     for (let var i = 0; i < 8; ++i) {
-        // Reset vars from original vertices
-        vars[i] = vertices[i];
-
         // Apply rotation Z
-        vars[i] = multMatVec(vars[i], matRotZ);
+        // Use original vertices as reset
+        vars[i] = multMatVec(vertices[i], matRotZ);
 
         // Apply rotation X
         vars[i] = multMatVec(vars[i], matRotX);
@@ -243,15 +231,15 @@ loop {
         vars[i] = multMatVec(Vec3(vars[i].x, vars[i].y, vars[i].z + 3), matProj);
 
         // Recalculate screen coordinates
-        screen_x[i] = (vars[i].x + 1) * 0.5 * WIDTH;
-        screen_y[i] = (vars[i].y + 1) * 0.5 * HEIGHT;
+        vars[i].x = (vars[i].x + 1) * 0.5 * WIDTH;
+        vars[i].y = (vars[i].y + 1) * 0.5 * HEIGHT;
     }
 
     framebuffer.fill_u32(0, WIDTH*HEIGHT, 0xFF000000);
 
     for (let var i = 0; i < triangles.len; ++i) {
         let t = triangles[i];
-        drawtriangle(screen_x[t[0]], screen_y[t[0]], screen_x[t[1]], screen_y[t[1]], screen_x[t[2]], screen_y[t[2]]);
+        drawtriangle(vars[t[0]], vars[t[1]], vars[t[2]]);
     }
 
     $window_draw_frame(window, framebuffer);
@@ -270,6 +258,3 @@ loop {
     
     $actor_sleep(16);
 }
-
-
-
