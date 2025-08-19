@@ -101,11 +101,11 @@ pub fn get_method(val: Value, method_name: &str) -> Value
         (Value::Int64(_), "to_f") => HostFn::Fn1_1(int64_to_f),
         (Value::Int64(_), "to_s") => HostFn::Fn1_1(int64_to_s),
 
-    (Value::Float64(_), "floor") => HostFn::Fn1_1(float64_floor),
-    (Value::Float64(_), "sin") => HostFn::Fn1_1(float64_sin),
-    (Value::Float64(_), "sqrt") => HostFn::Fn1_1(float64_sqrt),
-    (Value::Float64(_), "to_f") => HostFn::Fn1_1(float64_to_f),
-    (Value::Float64(_), "to_s") => HostFn::Fn1_1(float64_to_s),
+        (Value::Float64(_), "floor") => HostFn::Fn1_1(float64_floor),
+        (Value::Float64(_), "sin") => HostFn::Fn1_1(float64_sin),
+        (Value::Float64(_), "sqrt") => HostFn::Fn1_1(float64_sqrt),
+        (Value::Float64(_), "to_f") => HostFn::Fn1_1(float64_to_f),
+        (Value::Float64(_), "to_s") => HostFn::Fn1_1(float64_to_s),
 
         (Value::Class(ARRAY_ID), "with_size") => HostFn::Fn3_1(array_with_size),
         (Value::Array(_), "push") => HostFn::Fn2_0(array_push),
