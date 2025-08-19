@@ -231,18 +231,24 @@ fun multMatVec(i, m) {
     return o;
 }
 
-fun proj_vertices() {
+fun rota_vertices() {
+    let var rota = [];
+
+    for (let var i = 0; i < 8; ++i) {
+        rota.push(multMatVec(vertices[i], matRotX));
+    }
+
+    for (let var i = 0; i < 8; ++i) {
+        rota[i] = multMatVec(rota[i], matRotZ);
+    }
+    return rota;
+}
+
+fun proj_vertices(rota) {
     let var proj = [];
-    for (let var i = 0; i < 8; ++i) {
-        proj.push(multMatVec(vertices[i], matRotX));
-    }
 
     for (let var i = 0; i < 8; ++i) {
-        proj[i] = multMatVec(proj[i], matRotZ);
-    }
-
-    for (let var i = 0; i < 8; ++i) {
-        proj[i] = multMatVec(Vec3(proj[i].x, proj[i].y, proj[i].z + 3), matProj);
+        proj.push(multMatVec(Vec3(rota[i].x, rota[i].y, rota[i].z + 3), matProj));
     }
 
     for (let var i = 0; i < 8; ++i) {
@@ -273,7 +279,8 @@ fun draw_cube(proj) {
 
 compute_matX();
 compute_matZ();
-let proj = proj_vertices();
+let rota = rota_vertices();
+let proj = proj_vertices(rota);
 draw_cube(proj);
 
 // Draw in window
@@ -288,7 +295,8 @@ loop {
 
     compute_matX();
     compute_matZ();
-    let proj = proj_vertices();
+    let rota = rota_vertices();
+    let proj = proj_vertices(rota);
     draw_cube(proj);
 
     $window_draw_frame(window, framebuffer);
