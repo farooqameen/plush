@@ -46,6 +46,13 @@ fn float64_sqrt(actor: &mut Actor, v: Value) -> Value
     Value::Float64(v.sqrt())
 }
 
+fn float64_to_f(actor: &mut Actor, v: Value) -> Value
+{
+    // already a float, return as-is
+    let v = v.unwrap_f64();
+    Value::Float64(v)
+}
+
 fn float64_to_s(actor: &mut Actor, v: Value) -> Value
 {
     let v = v.unwrap_f64();
@@ -94,10 +101,11 @@ pub fn get_method(val: Value, method_name: &str) -> Value
         (Value::Int64(_), "to_f") => HostFn::Fn1_1(int64_to_f),
         (Value::Int64(_), "to_s") => HostFn::Fn1_1(int64_to_s),
 
-        (Value::Float64(_), "floor") => HostFn::Fn1_1(float64_floor),
-        (Value::Float64(_), "sin") => HostFn::Fn1_1(float64_sin),
-        (Value::Float64(_), "sqrt") => HostFn::Fn1_1(float64_sqrt),
-        (Value::Float64(_), "to_s") => HostFn::Fn1_1(float64_to_s),
+    (Value::Float64(_), "floor") => HostFn::Fn1_1(float64_floor),
+    (Value::Float64(_), "sin") => HostFn::Fn1_1(float64_sin),
+    (Value::Float64(_), "sqrt") => HostFn::Fn1_1(float64_sqrt),
+    (Value::Float64(_), "to_f") => HostFn::Fn1_1(float64_to_f),
+    (Value::Float64(_), "to_s") => HostFn::Fn1_1(float64_to_s),
 
         (Value::Class(ARRAY_ID), "with_size") => HostFn::Fn3_1(array_with_size),
         (Value::Array(_), "push") => HostFn::Fn2_0(array_push),

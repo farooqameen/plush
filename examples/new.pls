@@ -61,6 +61,9 @@ class Vec3 {
     // Normalize vector
     normalize(self) {
         let len = self.length_squared().to_f().sqrt();
+        if (len == 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
         return Vec3(self.x / len, self.y / len, self.z / len);
     }
 }
@@ -107,6 +110,27 @@ let triangles = [
 
 // Array of vertices (for index)
 let vertices = [a, b, c, d, e, f, g, h];
+
+let trianglesIndex = [
+    // front
+    [0, 2, 1],
+    [0, 3, 2],
+    // right
+    [3, 5, 2],
+    [3, 6, 5],
+    // back
+    [6, 7, 4],
+    [6, 4, 5],
+    // left
+    [7, 0, 1],
+    [7, 1, 4],
+    // top
+    [1, 5, 4],
+    [1, 2, 5],
+    // bottom
+    [0, 7, 6],
+    [0, 6, 3]
+];
 
 // Projecton matrix setup
 let fNear = -0.1;
@@ -241,11 +265,11 @@ fun rota_vertices() {
     let var rota = [];
 
     for (let var i = 0; i < 8; ++i) {
-        rota.push(multMatVec(vertices[i], matRotX));
+        rota.push(multMatVec(vertices[i], matRotZ));
     }
 
     for (let var i = 0; i < 8; ++i) {
-        rota[i] = multMatVec(rota[i], matRotZ);
+        rota[i] = multMatVec(rota[i], matRotX);
     }
     return rota;
 }
@@ -254,12 +278,16 @@ compute_matX();
 compute_matZ();
 let rota = rota_vertices();
 
-fun calc_normal() {
+fun calc_normal(rota) {
+    let n = [];
     for (let var i = 0; i < triangles.len; ++i) {
-        let triangle = triangles[i];
-        let line1 = triangle[1].sub(triangle[0]);
-        let line2 = triangle[2].sub(triangle[0]);
-        
+        let idxs = trianglesIndex[i];
+        let v0 = rota[idxs[0]];
+        let v1 = rota[idxs[1]];
+        let v2 = rota[idxs[2]];
+
+        let line1 = v1.sub(v0);
+        let line2 = v2.sub(v0);
         let var normal = line1.cross(line2);
         normal = normal.normalize();
 
@@ -267,11 +295,13 @@ fun calc_normal() {
         $print("y: " + normal.y.to_s() + " ");
         $print("z: " + normal.z.to_s() + " ");
         $println("");
+
+        n.push(normal);
     }
+    return n;
 }
 
-//todo: fix vectors so normals are correct
-calc_normal();
+let normal = calc_normal(rota);
 
 fun proj_vertices(rota) {
     let var proj = [];
@@ -290,7 +320,7 @@ fun proj_vertices(rota) {
     return proj;
 }
 
-fun draw_cube(proj) {
+fun draw_cube(proj, normal) {
     // Draw each triangle
     for (let var i = 0; i < triangles.len; ++i) {
         let triangle = triangles[i];
@@ -302,12 +332,14 @@ fun draw_cube(proj) {
                 }
             }
         }
-        draw_triangle(points[0], points[1], points[2]);
+        if (normal[i].z < -0.0001) {
+            draw_triangle(points[0], points[1], points[2]);
+        }
     }
 }
 
 let proj = proj_vertices(rota);
-draw_cube(proj);
+draw_cube(proj, normal);
 
 // Draw in window
 let window = $window_create(WIDTH, HEIGHT, "Cube", 0);
@@ -316,16 +348,17 @@ $window_draw_frame(window, framebuffer);
 loop {
     let msg = $actor_poll();
 
-    //framebuffer.fill_u32(0, WIDTH * HEIGHT, 0xFF000000);
-    //fTheta = $time_current_ms().to_f() * 0.001;
+    framebuffer.fill_u32(0, WIDTH * HEIGHT, 0xFF000000);
+    fTheta = $time_current_ms().to_f() * 0.001;
 
-    //compute_matX();
-    //compute_matZ();
-    //let rota = rota_vertices();
-    //let proj = proj_vertices(rota);
-    //draw_cube(proj);
+    compute_matZ();
+    compute_matX();
+    let rota = rota_vertices();
+    let normal = calc_normal(rota);
+    let proj = proj_vertices(rota);
+    draw_cube(proj, normal);
 
-    //$window_draw_frame(window, framebuffer);
+    $window_draw_frame(window, framebuffer);
 
     if (msg == nil) {
         continue;
@@ -337,7 +370,7 @@ loop {
         break;
     }
 
-    $actor_sleep(16);
+    $actor_sleep(8);
 }
 
 
