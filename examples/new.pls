@@ -92,17 +92,17 @@ let triangles = [
     [d, f, c],
     [d, g, f],
     //back
-    [g, e, h],
-    [g, f, e],
+    [g, h, e],
+    [g, e, f],
     //left
-    [h, b, a],
+    [h, a, b],
     [h, b, e],
     //top
     [b, f, e],
     [b, c, f],
     //bottom
-    [a, g, h],
-    [a, d, g]
+    [a, h, g],
+    [a, g, d]
 ];
 
 // Array of vertices (for index)
