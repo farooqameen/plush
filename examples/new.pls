@@ -291,10 +291,10 @@ fun calc_normal(rota) {
         let var normal = line1.cross(line2);
         normal = normal.normalize();
 
-        $print("x: " + normal.x.to_s() + " ");
-        $print("y: " + normal.y.to_s() + " ");
-        $print("z: " + normal.z.to_s() + " ");
-        $println("");
+        //$print("x: " + normal.x.to_s() + " ");
+        //$print("y: " + normal.y.to_s() + " ");
+        //$print("z: " + normal.z.to_s() + " ");
+        //$println("");
 
         n.push(normal);
     }
@@ -320,26 +320,30 @@ fun proj_vertices(rota) {
     return proj;
 }
 
-fun draw_cube(proj, normal) {
+let camera = Vec3(0, 0, -3);
+
+fun draw_cube(rota, proj, normal) {
     // Draw each triangle
     for (let var i = 0; i < triangles.len; ++i) {
         let triangle = triangles[i];
         let var points = [];
+        let var pointsRota = [];
         for (let var j = 0; j < 3; ++j) {
             for (let var k = 0; k < vertices.len; ++k) {
                 if (vertices[k] == triangle[j]) {
                     points.push(proj[k]);
+                    pointsRota.push(rota[k]);
                 }
             }
         }
-        if (normal[i].z < -0.0001) {
+        if (normal[i].dot(pointsRota[0].sub(camera)) < 0) {
             draw_triangle(points[0], points[1], points[2]);
         }
     }
 }
 
 let proj = proj_vertices(rota);
-draw_cube(proj, normal);
+draw_cube(rota, proj, normal);
 
 // Draw in window
 let window = $window_create(WIDTH, HEIGHT, "Cube", 0);
@@ -356,7 +360,7 @@ loop {
     let rota = rota_vertices();
     let normal = calc_normal(rota);
     let proj = proj_vertices(rota);
-    draw_cube(proj, normal);
+    draw_cube(rota, proj, normal);
 
     $window_draw_frame(window, framebuffer);
 
