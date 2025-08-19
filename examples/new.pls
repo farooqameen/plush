@@ -60,7 +60,7 @@ class Vec3 {
 
     // Normalize vector
     normalize(self) {
-        let len = self.length_squared().sqrt();
+        let len = self.length_squared().to_f().sqrt();
         return Vec3(self.x / len, self.y / len, self.z / len);
     }
 }
@@ -85,16 +85,22 @@ let g = Vec3(+1, +1, 1);
 let h = Vec3(-1, +1, 1);
 
 let triangles = [
+    //front
     [a, c, b],
     [a, d, c],
+    //right
     [d, f, c],
     [d, g, f],
+    //back
     [g, e, h],
     [g, f, e],
+    //left
     [h, b, a],
     [h, b, e],
+    //top
     [b, f, e],
     [b, c, f],
+    //bottom
     [a, g, h],
     [a, d, g]
 ];
@@ -244,6 +250,29 @@ fun rota_vertices() {
     return rota;
 }
 
+compute_matX();
+compute_matZ();
+let rota = rota_vertices();
+
+fun calc_normal() {
+    for (let var i = 0; i < triangles.len; ++i) {
+        let triangle = triangles[i];
+        let line1 = triangle[1].sub(triangle[0]);
+        let line2 = triangle[2].sub(triangle[0]);
+        
+        let var normal = line1.cross(line2);
+        normal = normal.normalize();
+
+        $print("x: " + normal.x.to_s() + " ");
+        $print("y: " + normal.y.to_s() + " ");
+        $print("z: " + normal.z.to_s() + " ");
+        $println("");
+    }
+}
+
+//todo: fix vectors so normals are correct
+calc_normal();
+
 fun proj_vertices(rota) {
     let var proj = [];
 
@@ -277,9 +306,6 @@ fun draw_cube(proj) {
     }
 }
 
-compute_matX();
-compute_matZ();
-let rota = rota_vertices();
 let proj = proj_vertices(rota);
 draw_cube(proj);
 
@@ -290,16 +316,16 @@ $window_draw_frame(window, framebuffer);
 loop {
     let msg = $actor_poll();
 
-    framebuffer.fill_u32(0, WIDTH * HEIGHT, 0xFF000000);
-    fTheta = $time_current_ms().to_f() * 0.001;
+    //framebuffer.fill_u32(0, WIDTH * HEIGHT, 0xFF000000);
+    //fTheta = $time_current_ms().to_f() * 0.001;
 
-    compute_matX();
-    compute_matZ();
-    let rota = rota_vertices();
-    let proj = proj_vertices(rota);
-    draw_cube(proj);
+    //compute_matX();
+    //compute_matZ();
+    //let rota = rota_vertices();
+    //let proj = proj_vertices(rota);
+    //draw_cube(proj);
 
-    $window_draw_frame(window, framebuffer);
+    //$window_draw_frame(window, framebuffer);
 
     if (msg == nil) {
         continue;
