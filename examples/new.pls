@@ -13,6 +13,7 @@ fun tan(a) {
     return(a.sin()/(1.5707963-a).sin());
 }
 
+// cos using sin identity
 fun cos(a) {
     return((a + 1.5707963).sin());
 }
@@ -60,7 +61,7 @@ class Vec3 {
 
     // Normalize vector
     normalize(self) {
-        let len = self.length_squared().to_f().sqrt();
+        let len = self.length_squared().sqrt();
         if (len == 0.0) {
             return Vec3(0.0, 0.0, 0.0);
         }
@@ -244,6 +245,66 @@ fun draw_triangle(v0, v1, v2) {
     draw_line(v2, v0);
 }
 
+let palette = [
+    // front
+    0xFFDC3C3C,
+    0xFFDC3C3C,
+    // right
+    0xFF3CBD5E,
+    0xFF3CBD5E,
+    // back
+    0xFF3C6BDC,
+    0xFF3C6BDC,
+    // left
+    0xFF3CBDBD,
+    0xFF3CBDBD,
+    // top
+    0xFFE6C93C,
+    0xFFE6C93C,
+    // bottom
+    0xFFBD3CBD,
+    0xFFBD3CBD,
+];
+
+// Rasterize a triangle into a ByteArray framebuffer
+fun rasterize_triangle(v0, v1, v2, paletteIndex) {
+    // Convert vertices to integer coordinates
+    let x0 = v0.x.floor();
+    let y0 = v0.y.floor();
+    let x1 = v1.x.floor();
+    let y1 = v1.y.floor();
+    let x2 = v2.x.floor();
+    let y2 = v2.y.floor();
+
+    // Compute bounding box
+    let minX = max(0, min(x0, min(x1, x2)));
+    let maxX = min(WIDTH - 1, max(x0, max(x1, x2)));
+    let minY = max(0, min(y0, min(y1, y2)));
+    let maxY = min(HEIGHT - 1, max(y0, max(y1, y2)));
+
+    // Precompute barycentric coordinate divisors
+    let area = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+    if (area == 0) return; // Degenerate triangle
+
+    // Scan through bounding box
+    for (let var y = minY; y <= maxY; y = y + 1) {
+        for (let var x = minX; x <= maxX; x = x + 1) {
+            // Compute barycentric coordinates
+            let w0 = (y1 - y2) * (x - x2) + (x2 - x1) * (y - y2);
+            let w1 = (y2 - y0) * (x - x2) + (x0 - x2) * (y - y2);
+            let w2 = area - w0 - w1;
+
+            // Check if point is inside triangle
+            if (w0 <= 0 && w1 <= 0 && w2 <= 0) {
+                let index = y * WIDTH + x;
+                // Select color using provided index
+                let color = palette[paletteIndex % palette.len];
+                framebuffer.write_u32(index, color);
+            }
+        }
+    }
+}
+
 // Multiply a Vec3 by a 4x4 matrix
 fun multMatVec(i, m) {
     let o = Vec3(0, 0, 0);
@@ -337,7 +398,8 @@ fun draw_cube(rota, proj, normal) {
             }
         }
         if (normal[i].dot(pointsRota[0].sub(camera)) < 0) {
-            draw_triangle(points[0], points[1], points[2]);
+            //draw_triangle(points[0], points[1], points[2]);
+            rasterize_triangle(points[0], points[1], points[2], i);
         }
     }
 }
