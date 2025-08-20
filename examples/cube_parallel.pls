@@ -504,11 +504,11 @@ fun render_cube_single(fTheta) {
 }
 
 // Main rendering loop
-let window = $window_create(WIDTH, HEIGHT, "Parallel Cube", 0);
+let window = $window_create(WIDTH, HEIGHT, "Cube (Parallel)", 0);
 let var fTheta = $time_current_ms().to_f() * 0.001;
 
 // Switch between parallel and single-threaded rendering
-let var use_parallel = false; 
+let var use_parallel = true; 
 
 loop {
     let msg = $actor_poll();

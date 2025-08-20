@@ -398,8 +398,8 @@ fun draw_cube(rota, proj, normal) {
             }
         }
         if (normal[i].dot(pointsRota[0].sub(camera)) < 0) {
-            //draw_triangle(points[0], points[1], points[2]);
-            rasterize_triangle(points[0], points[1], points[2], i);
+            draw_triangle(points[0], points[1], points[2]);
+            //rasterize_triangle(points[0], points[1], points[2], i);
         }
     }
 }
@@ -436,7 +436,7 @@ loop {
         break;
     }
 
-    $actor_sleep(8);
+    $actor_sleep(16);
 }
 
 
