@@ -136,6 +136,8 @@ Plush provides a set of built-in host functions and methods that can be accessed
 These host functions are defined in [`src/host.rs`](/src/host.rs):
 
 -   `$time_current_ms()`: Returns the current time in milliseconds since the Unix epoch.
+-   `$cmd_num_args()`: Get the number of command-line arguments available to the program.
+-   `$cmd_get_arg(idx)`: Get the command-line argument at the given index.
 -   `$print(value)`: Prints a value to the console.
 -   `$println(value)`: Prints a value to the console, followed by a newline.
 -   `$readln()`: Read one line of input into a string.
@@ -165,6 +167,9 @@ These host functions are defined in [`src/host.rs`](/src/host.rs):
     -   `cos()`: Returns the cosine of the float.
     -   `sqrt()`: Returns the square root of the float.
     -   `to_s()`: Returns a string representation of the float.
+-   **String**
+    -   `parse_int(radix)`: Try to parse the entire string as an integer of the given `radix`. Returns `nil` on failure.
+    -   `trim()`: Produce a new string without whitespace at the beginning or end.
 -   **Array**
     -   `with_size(size, value)`: Creates a new array of the given size, filled with the given value.
     -   `push(value)`: Adds a value to the end of the array.
