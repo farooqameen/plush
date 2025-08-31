@@ -333,6 +333,13 @@ impl ExprBox
                 code.push(Insn::push { val: Value::String(p_str) });
             }
 
+            Expr::ByteArray(bytes) => {
+                let ba = crate::bytearray::ByteArray::new(bytes);
+                let p_ba = alloc.alloc(ba);
+                code.push(Insn::push { val: Value::ByteArray(p_ba) });
+                code.push(Insn::ba_clone);
+            }
+
             Expr::Array { exprs } => {
                 return gen_arr_expr(
                     exprs,
