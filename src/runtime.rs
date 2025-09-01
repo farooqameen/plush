@@ -67,30 +67,25 @@ fn float64_to_s(actor: &mut Actor, v: Value) -> Value
     Value::String(actor.alloc.str_const(s))
 }
 
+/// Get the UTF-8 byte at the given index
+fn string_byte_at(actor: &mut Actor, s: Value, idx: Value) -> Value
+{
+    let s = s.unwrap_rust_str();
+    let idx = idx.unwrap_usize();
+    let byte = s.as_bytes().get(idx).unwrap();
+    Value::from(*byte)
+}
+
 /// Try to parse the string as an integer with the given radix
 fn string_parse_int(actor: &mut Actor, s: Value, radix: Value) -> Value
 {
     let s = s.unwrap_rust_str();
-    let radix = radix.unwrap_u64();
+    let radix = radix.unwrap_u32();
 
-    let mut lexer = crate::lexer::Lexer::new(s, "");
-    let int_val = lexer.parse_int(radix.try_into().unwrap());
-
-    let int_val = match int_val {
-        Ok(int_val) => int_val,
-        Err(_) => return Value::Nil
-    };
-
-    if int_val < i64::MIN.into() || int_val > i64::MAX.into() {
-        return Value::Nil;
+    match i64::from_str_radix(s, radix) {
+        Ok(int_val) => Value::from(int_val),
+        Err(_) => Value::Nil,
     }
-
-    // If some characters in the string were not consumed, fail
-    if !lexer.eof() {
-        return Value::Nil;
-    }
-
-    Value::from(int_val as i64)
 }
 
 /// Trim whitespace
@@ -151,6 +146,7 @@ pub fn get_method(val: Value, method_name: &str) -> Value
         (Value::Float64(_), "sqrt") => HostFn::Fn1_1(float64_sqrt),
         (Value::Float64(_), "to_s") => HostFn::Fn1_1(float64_to_s),
 
+        (Value::String(_), "byte_at") => HostFn::Fn2_1(string_byte_at),
         (Value::String(_), "parse_int") => HostFn::Fn2_1(string_parse_int),
         (Value::String(_), "trim") => HostFn::Fn1_1(string_trim),
 
