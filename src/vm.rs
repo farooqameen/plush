@@ -306,6 +306,14 @@ impl Value
         }
     }
 
+    pub fn unwrap_i32(&self) -> i32
+    {
+        match self {
+            Int64(v) => (*v).try_into().unwrap(),
+            _ => panic!("expected int64 value but got {:?}", self)
+        }
+    }
+
     pub fn unwrap_i64(&self) -> i64
     {
         match self {
@@ -361,27 +369,30 @@ impl PartialEq for Value
     {
         use Value::*;
 
-        // For strings, we do a structural equality comparison, so
-        // that some strings can be interned (deduplicated)
-        if let (String(p1), String(p2)) = (self, other) {
-            return unsafe { **p1 == **p2 };
-        }
+        match (self, other) {
+            (Nil, Nil) => true,
+            (True, True) => true,
+            (False, False) => true,
 
-        // For all other cases, use the default comparison
-        std::mem::discriminant(self) == std::mem::discriminant(other)
-        && match (self, other) {
-            (Nil, _) => true,
-            (True, _) => true,
-            (False, _) => true,
+            // For strings, we do a structural equality comparison, so
+            // that some strings can be interned (deduplicated)
+            (String(p1), String(p2))    => unsafe { **p1 == **p2 },
+
+            // For int & float, we may need type conversions
+            (Float64(a), Int64(b))      => *a == *b as f64,
+            (Int64(a), Float64(b))      => *a as f64 == *b,
+
+            // For all other cases, use structural equality
             (Int64(a), Int64(b))        => a == b,
             (Float64(a), Float64(b))    => a == b,
             (HostFn(a), HostFn(b))      => a == b,
             (Fun(a), Fun(b))            => a == b,
             (Closure(a), Closure(b))    => a == b,
             (Object(a), Object(b))      => a == b,
-            (Array(a), Array(b))        => a == b,
-            (ByteArray(a), ByteArray(b))        => a == b,
-            _ => panic!("not yet implemented eq {:?} == {:?}", self, other),
+            (Array(a), Array(b))            => a == b,
+            (ByteArray(a), ByteArray(b))    => a == b,
+
+            _ => false,
         }
     }
 }
@@ -738,7 +749,7 @@ impl Actor
 
         if host_fn.num_params() != argc {
             panic!(
-                "incorrect argument count for host functions, got {}, expected {}",
+                "incorrect argument count for host function, got {}, expected {}",
                 argc,
                 host_fn.num_params()
             );
@@ -835,6 +846,19 @@ impl Actor
                 let v = fun(self, a0, a1, a2, a3, a4);
                 push!(v);
             }
+
+            HostFn::Fn8_0(fun) => {
+                let a7 = pop!();
+                let a6 = pop!();
+                let a5 = pop!();
+                let a4 = pop!();
+                let a3 = pop!();
+                let a2 = pop!();
+                let a1 = pop!();
+                let a0 = pop!();
+                fun(self, a0, a1, a2, a3, a4, a5, a6, a7);
+                push!(Value::Nil);
+            }
         }
     }
 
@@ -910,7 +934,15 @@ impl Actor
                 let fun_entry = self.get_compiled_fun(fun_id);
 
                 if $argc as usize != fun_entry.num_params {
-                    panic!("incorrect argument count");
+                    let vm = self.vm.lock().unwrap();
+                    let fun = &vm.prog.funs[&fun_id];
+                    panic!(
+                        "incorrect argument count in call to function \"{}\", defined at {}, received {} arguments, expected {}",
+                        fun.name,
+                        fun.pos,
+                        $argc,
+                        fun_entry.num_params
+                    );
                 }
 
                 self.frames.push(StackFrame {
@@ -1157,7 +1189,7 @@ impl Actor
 
                     let r = match (v0, v1) {
                         (Int64(v0), Int64(v1)) => Int64(v0 & v1),
-                        _ => panic!()
+                        _ => panic!("bitwise AND with non-integer values")
                     };
 
                     push!(r);
@@ -2191,6 +2223,7 @@ mod tests
     #[test]
     fn instanceof()
     {
+        eval_eq("class F {} return nil instanceof F;", Value::False);
         eval_eq("class F {} let o = F(); return o instanceof F;", Value::True);
         eval_eq("class F {} class G {} let o = F(); return o instanceof G;", Value::False);
         eval_eq("class F {} return F() instanceof F;", Value::True);
