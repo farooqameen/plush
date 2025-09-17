@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - 'plush.tmbundle/**'
-  workflow_dispatch:
+      - '.github/workflows/tmbundle.yml'
 
 jobs:
   build:
@@ -20,17 +20,51 @@ jobs:
       uses: actions/setup-node@v5
       with:
         node-version: '>=20.x.x'
-    
+
     - name: Install vsce
       run: npm install -g @vscode/vsce
+
+    - name: Bump Version
+      run: |
+        cd plush.tmbundle
+        if [ ! -f package.json ]; then
+          echo "Error: package.json not found in plush.tmbundle"
+          exit 1
+        fi
+        npm version patch --no-git-tag-version
+        NEW_VERSION=$(jq -r '.version' package.json)
+        echo "New version: $NEW_VERSION"
+        git add package.json
+        if [ -f package-lock.json ]; then
+          git add package-lock.json
+        fi
+        git commit -m "Bump version to $NEW_VERSION" || echo "No changes to commit"
+        git push
+      env:
+        GH_TOKEN: ${{ github.token }}
 
     - name: Package .vsix
       run: cd plush.tmbundle && vsce package
 
-    - name: Extract version
-      run: echo "TAG=$(jq -r '.version' plush.tmbundle/package.json)" >> $GITHUB_ENV
+    - name: Extract version and set tag
+      run: |
+        VERSION=$(jq -r '.version' plush.tmbundle/package.json)
+        echo "TAG=vsix-$VERSION" >> $GITHUB_ENV
+
+    - name: Delete Existing Release (if any)
+      run: |
+        if gh release view ${{ env.TAG }} --repo ${{ github.repository }} > /dev/null 2>&1; then
+          echo "Release with tag ${{ env.TAG }} exists, deleting it..."
+          gh release delete ${{ env.TAG }} --repo ${{ github.repository }} --yes
+        else
+          echo "No release with tag ${{ env.TAG }} exists, proceeding..."
+        fi
+      env:
+        GH_TOKEN: ${{ github.token }}
 
     - name: Create Release
-      run: gh release create $TAG 'plush.tmbundle/*.vsix' --generate-notes
+      run: |
+        VERSION=$(jq -r '.version' plush.tmbundle/package.json)
+        gh release create ${{ env.TAG }} 'plush.tmbundle/*.vsix' --title "Plush VSCode Extension $VERSION" --generate-notes
       env:
         GH_TOKEN: ${{ github.token }}

@@ -54,9 +54,12 @@ Plush is a dynamically typed language and supports the following data types:
 
 Plush supports a range of arithmetic, comparison, and logical operators:
 
--   **Arithmetic**: `+`, `-`, `*`, `/`, `%`
+-   **Arithmetic**: `+`, `-`, `*`, `/`, `_/`, `%`
 -   **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`.
 -   **Logical**: `&&`, `||`, `!`
+
+The `_/` operator performs integer division, that is, truncated division which only accepts integer inputs and yields
+an integer output, whereas the division operator `/` yields a floating-point value as output.
 
 Note that unlike in JavaScript, the `==` operator performs reference equality for objects and arrays, not structural equality.
 
@@ -137,7 +140,7 @@ These host functions are defined in [`src/host.rs`](/src/host.rs):
 
 -   `$time_current_ms()`: Returns the current time in milliseconds since the Unix epoch.
 -   `$cmd_num_args()`: Get the number of command-line arguments available to the program.
--   `$cmd_get_arg(idx)`: Get the command-line argument at the given index.
+-   `$cmd_get_arg(idx)`: Get the command-line argument at the given index. Returns `nil` if absent.
 -   `$print(value)`: Prints a value to the console.
 -   `$println(value)`: Prints a value to the console, followed by a newline.
 -   `$readln()`: Read one line of input into a string.
@@ -168,6 +171,7 @@ These host functions are defined in [`src/host.rs`](/src/host.rs):
     -   `cos()`: Returns the cosine of the float.
     -   `sqrt()`: Returns the square root of the float.
     -   `to_s()`: Returns a string representation of the float.
+    -   `format_decimals(n)`: Produce a string representation with a given number of decimals.
     -   `min(other)`: Returns the minimum of this number and `other`.
     -   `max(other)`: Returns the maximum of this number and `other`.
 -   **String**
