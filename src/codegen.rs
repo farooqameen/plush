@@ -1,7 +1,7 @@
 use std::cmp::max;
 use crate::ast::*;
 use crate::lexer::ParseError;
-use crate::symbols::{Decl};
+use crate::symbols::Decl;
 use crate::vm::{Insn, Value};
 use crate::alloc::Alloc;
 
@@ -152,8 +152,8 @@ impl StmtBox
                                     num_slots: captured.len() as u32,
                                 });
 
-                                // Initialize the local variable
-                                gen_var_write(decl.as_ref().unwrap(), code);
+                                // Initialize the local variable for this closure
+                                gen_var_write(decl.as_ref().unwrap(), fun, code);
                             }
                         }
                     }
@@ -283,14 +283,19 @@ impl StmtBox
                     Expr::Fun { fun_id, captured } => {
                         // Read the closure decl
                         let decl = decl.as_ref().unwrap();
-                        gen_var_read(decl, code);
+                        gen_var_read(decl, fun, code);
 
                         // For each variable captured by the closure
                         for (idx, decl) in captured.iter().enumerate() {
                             code.push(Insn::dup);
 
-                            // Read the variable and write its value on the closure
-                            gen_var_read(decl, code);
+                            // Copy variables and cells captured by the closure
+                            match decl {
+                                Decl::Local { idx, mutable: true, .. } => {
+                                    code.push(Insn::get_local { idx: *idx });
+                                }
+                                _ => gen_var_read(decl, fun, code)
+                            }
                             code.push(Insn::clos_set { idx: idx as u32 });
                         }
                     }
@@ -298,8 +303,21 @@ impl StmtBox
                     _ => init_expr.gen_code(fun, code, alloc)?
                 }
 
+                // If this is an escaping mutable variable
+                if fun.escaping.contains(decl.as_ref().unwrap()) {
+                    let local_idx = match decl.unwrap() {
+                        Decl::Local { idx, .. } => idx,
+                        _ => panic!()
+                    };
+
+                    // Allocate a mutable closure cell for this variable
+                    let p_cell = alloc.alloc(Value::Nil);
+                    code.push(Insn::push { val: Value::Cell(p_cell) });
+                    code.push(Insn::set_local { idx: local_idx });
+                }
+
                 // Initialize the local variable
-                gen_var_write(decl.as_ref().unwrap(), code);
+                gen_var_write(decl.as_ref().unwrap(), fun, code);
             }
 
             Stmt::ClassDecl { .. } => {}
@@ -359,7 +377,7 @@ impl ExprBox
             }
 
             Expr::Ref(decl) => {
-                gen_var_read(decl, code);
+                gen_var_read(decl, fun, code);
             }
 
             Expr::Index { base, index } => {
@@ -490,7 +508,14 @@ impl ExprBox
                 // For each variable captured by the closure
                 for (idx, decl) in captured.iter().enumerate() {
                     code.push(Insn::dup);
-                    gen_var_read(decl, code);
+
+                    // Copy variables and cells captured by the closure
+                    match decl {
+                        Decl::Local { idx, mutable: true, .. } => {
+                            code.push(Insn::get_local { idx: *idx });
+                        }
+                        _ => gen_var_read(decl, fun, code)
+                    }
                     code.push(Insn::clos_set { idx: idx as u32 });
                 }
             }
@@ -679,6 +704,7 @@ fn gen_bin_op(
 /// Assumes the value to be written is on top of the stack
 fn gen_var_write(
     decl: &Decl,
+    fun: &Function,
     code: &mut Vec<Insn>,
 )
 {
@@ -688,13 +714,20 @@ fn gen_var_write(
         }
 
         Decl::Local { idx, .. } => {
-            code.push(Insn::set_local { idx });
+            // If this is an escaping mutable variable
+            if fun.escaping.contains(decl) {
+                code.push(Insn::get_local { idx });
+                code.push(Insn::cell_set);
+
+            } else {
+                code.push(Insn::set_local { idx });
+            }
         }
 
         Decl::Captured { idx, mutable } => {
-            assert!(mutable == false);
-
-            todo!();
+            assert!(mutable);
+            code.push(Insn::clos_get { idx });
+            code.push(Insn::cell_set);
         }
 
         _ => todo!()
@@ -705,6 +738,7 @@ fn gen_var_write(
 /// Pushes the value read on the stack
 fn gen_var_read(
     decl: &Decl,
+    fun: &Function,
     code: &mut Vec<Insn>,
 )
 {
@@ -726,15 +760,23 @@ fn gen_var_read(
         }
 
         Decl::Local { idx, .. } => {
-            code.push(Insn::get_local { idx });
+            // If this is an escaping mutable variable
+            if fun.escaping.contains(decl) {
+                code.push(Insn::get_local { idx });
+                code.push(Insn::cell_get);
+
+            } else {
+                code.push(Insn::get_local { idx });
+            }
         }
 
         Decl::Captured { idx, mutable } => {
             if mutable {
-                todo!()
+                code.push(Insn::clos_get { idx });
+                code.push(Insn::cell_get);
+            } else {
+                code.push(Insn::clos_get { idx });
             }
-
-            code.push(Insn::clos_get { idx });
         }
     }
 }
@@ -760,7 +802,7 @@ fn gen_assign(
                 code.push(Insn::dup);
             }
 
-            gen_var_write(decl, code);
+            gen_var_write(decl, fun, code);
         }
 
         Expr::Member { base, field } => {

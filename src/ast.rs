@@ -1,5 +1,5 @@
 use std::fmt;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use crate::lexer::SrcPos;
 use crate::symbols::Decl;
 use crate::host::HostFn;
@@ -273,6 +273,10 @@ pub struct Function
     /// Map of captured closure variables to closure slots indices
     pub captured: HashMap<Decl, u32>,
 
+    /// Set of mutable local variables which are captured by a nested function
+    /// Note that this only applies to mutable locals which need a mutable closure cell
+    pub escaping: HashSet<Decl>,
+
     /// Unit-level (global) function
     pub is_unit: bool,
 
@@ -384,6 +388,7 @@ pub const STRING_ID: ClassId = ClassId(5);
 pub const ARRAY_ID: ClassId = ClassId(6);
 pub const BYTEARRAY_ID: ClassId = ClassId(7);
 pub const UIEVENT_ID: ClassId = ClassId(8);
+pub const AUDIO_NEEDED_ID: ClassId = ClassId(9);
 pub const LAST_RESERVED_ID: usize = 0xFF;
 
 #[derive(Default, Clone, Debug)]

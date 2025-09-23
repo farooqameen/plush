@@ -107,6 +107,10 @@ pub enum Insn
     clos_set { idx: u32 },
     clos_get { idx: u32 },
 
+    // Mutable cell access
+    cell_set,
+    cell_get,
+
     // Create class instance
     new { class_id: ClassId, argc: u16 },
 
@@ -1378,6 +1382,29 @@ impl Actor
                     push!(val);
                 }
 
+                // Set the value stored in a mutable cell
+                Insn::cell_set => {
+                    let cell = pop!();
+                    let val = pop!();
+
+                    match cell {
+                        Value::Cell(p_cell) => unsafe { *p_cell = val },
+                        _ => panic!()
+                    };
+                }
+
+                // Get the value stored in a mutable cell
+                Insn::cell_get => {
+                    let cell = pop!();
+
+                    let val = match cell {
+                        Value::Cell(p_cell) => unsafe { *p_cell },
+                        _ => panic!("invalid cell in cell_get")
+                    };
+
+                    push!(val);
+                }
+
                 /*
                 // Create new empty dictionary
                 Insn::dict_new => {
@@ -2035,7 +2062,7 @@ mod tests
         eval_eq("fun f(x) { return x + 1; } return f(7);", Value::Int64(8));
         eval_eq("fun f(a, b) { return a - b; } return f(7, 2);", Value::Int64(5));
 
-        // Captured global variable
+        // Global variable read
         eval_eq("let g = 3; fun f() { return g+1; } return f();", Value::Int64(4));
 
         // Function calling another function
@@ -2045,6 +2072,7 @@ mod tests
     #[test]
     fn ret_clos()
     {
+        // Function returning a closure
         eval_eq("fun a() { fun b() { return 33; } return b; } let f = a(); return f();", Value::Int64(33));
     }
 
@@ -2057,6 +2085,19 @@ mod tests
         // Capture local variable
         eval_eq("fun f(n) { let m = n+1; return || m+1; } let g = f(3); return g();", Value::Int64(5));
         eval_eq("fun f(n) { let m = n+1; return |x| m+x; } let g = f(3); return g(4);", Value::Int64(8));
+    }
+
+    #[test]
+    fn counter_clos()
+    {
+        // Read mutable captured variable
+        eval_eq("fun f() { let var n = 0; return || n; } let c = f(); return c();", Value::Int64(0));
+
+        // Write mutable captured variable
+        eval_eq("fun f() { let var n = 0; return || n = 1; } let c = f(); return c();", Value::Int64(1));
+
+        // Counter
+        eval_eq("fun f() { let var n = 0; return || ++n; } let c = f(); c(); return c();", Value::Int64(2));
     }
 
     #[test]

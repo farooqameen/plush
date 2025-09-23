@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::lexer::ParseError;
+use crate::lexer::{ParseError, SrcPos};
 use crate::ast::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -20,7 +20,7 @@ pub enum Decl
     // Local variable in a function
     Local { idx: u32, src_fun: FunId, mutable: bool },
 
-    // Variables captured by the current closure
+    // Variables from an outer function captured by the current closure
     Captured { idx: u32, mutable: bool },
 }
 
@@ -161,6 +161,7 @@ impl Program
         env.define("Array", Decl::Class { id: ARRAY_ID });
         env.define("ByteArray", Decl::Class { id: BYTEARRAY_ID });
         env.define("UIEvent", Decl::Class { id: UIEVENT_ID });
+        env.define("AudioNeeded", Decl::Class { id: AUDIO_NEEDED_ID });
 
         // Process the unit function
         let mut main_unit = std::mem::take(&mut self.main_unit);
@@ -495,21 +496,37 @@ impl ExprBox
                 let mut child_fun = std::mem::take(prog.funs.get_mut(fun_id).unwrap());
                 child_fun.resolve_syms(prog, env)?;
 
+                // We need to copy captured entries on the function expression but
+                // we also need to make sure that this array is in the correct order
+                let mut entries: Vec<(Decl, u32)> = child_fun.captured.clone().into_iter().collect();
+                entries.sort_by_key(|&(_, idx)| idx);
+
                 // For each variable captured by the nested function
-                for (decl, idx) in &child_fun.captured {
-                    // If this variable doesn't comes from this function,
-                    // then it must be captured by this closure
-                    match *decl {
+                for (decl, idx) in entries {
+                    match decl {
+                        // If this variable doesn't comes from this function,
+                        // then it must be captured by this closure
                         Decl::Arg { src_fun, .. } |
-                        Decl::Local { src_fun, .. }
-                        if src_fun != fun.id => {
+                        Decl::Local { src_fun, .. } if src_fun != fun.id => {
                             fun.reg_captured(&decl);
                         },
+
+                        // If the variable is a mutable local from this function,
+                        // register it as escaping and needing a mutable closure cell
+                        Decl::Local { src_fun, mutable: true, .. } if src_fun == fun.id => {
+                            fun.escaping.insert(decl);
+                        },
+
                         _ =>{}
                     };
 
                     captured.push(decl.clone());
                 }
+
+
+
+
+
 
                 // Put the child function back in place
                 *prog.funs.get_mut(fun_id).unwrap() = child_fun;
