@@ -298,7 +298,7 @@ impl StmtBox
                     _ => {
                         if env.has_local(var_name) {
                             return ParseError::with_pos(
-                                &format!("local with name \"{}\" already exists", var_name),
+                                &format!("local with name `{}` already exists", var_name),
                                 &self.pos
                             );
                         }
@@ -316,6 +316,8 @@ impl StmtBox
 
                 for fun_id in method_ids {
                     let mut fun = std::mem::take(prog.funs.get_mut(&fun_id).unwrap());
+                    // We may need to know the parameter count of the init function
+                    prog.funs.get_mut(&fun_id).unwrap().params = fun.params.clone();
                     fun.resolve_syms(prog, env)?;
                     prog.funs.insert(fun_id, fun);
                 }
@@ -381,12 +383,15 @@ impl ExprBox
                         _ => decl
                     };
 
-                    *(self.expr) = Expr::Ref(decl);
+                    *(self.expr) = Expr::Ref {
+                        name: name.clone(),
+                        decl
+                    };
                 }
                 else
                 {
                     return ParseError::with_pos(
-                        &format!("reference to unknown identifier \"{}\"", name),
+                        &format!("reference to unknown identifier `{}`", name),
                         &self.pos
                     );
                 }
@@ -428,10 +433,10 @@ impl ExprBox
                 if *op == BinOp::Assign {
                     match lhs.expr.as_ref() {
                         // Detect assignments to immutable variables
-                        Expr::Ref(decl) => {
+                        Expr::Ref { name, decl } => {
                             if !decl.is_mutable() {
                                 return ParseError::with_pos(
-                                    &format!("assignment to immutable variable, use `let var` to declare mutable variables"),
+                                    &format!("assignment to immutable variable `{}`, use `let var` to declare mutable variables", name),
                                     &self.pos
                                 );
                             }
@@ -441,6 +446,13 @@ impl ExprBox
                         Expr::Member { field, .. } => {
                             if let Some(class) = prog.classes.get_mut(&fun.class_id) {
                                 class.reg_field(field);
+
+                                if class.fields.len() > u16::MAX.into() {
+                                    return ParseError::with_pos(
+                                        &format!("too many fields in class `{}`", class.name),
+                                        &self.pos
+                                    );
+                                }
                             }
                         }
 
@@ -460,12 +472,29 @@ impl ExprBox
 
                 match callee.expr.as_ref() {
                     // New class instance
-                    Expr::Ref(Decl::Class { id }) => {
-                        if prog.classes.get(id).is_none() {
-                            return ParseError::with_pos(
-                                "cannot instantiate class because it does not have a constructor function",
-                                &callee.pos
-                            );
+                    Expr::Ref { decl: Decl::Class { id }, name } => {
+                        match prog.classes.get(id) {
+                            // If this is a core class with no definition
+                            None => {
+                                return ParseError::with_pos(
+                                    &format!("cannot instantiate core class `{}` via constructor call", name),
+                                    &callee.pos
+                                );
+                            },
+
+                            Some(class) => {
+                                let ctor_argc = match class.methods.get("init") {
+                                    Some(init_id) => prog.funs[init_id].params.len(),
+                                    None => 1
+                                };
+
+                                if args.len() + 1 != ctor_argc {
+                                    return ParseError::with_pos(
+                                        &format!("argument mismatch in call to constructor of class `{}`", name),
+                                        &callee.pos
+                                    );
+                                }
+                            }
                         }
                     }
 

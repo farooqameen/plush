@@ -112,7 +112,10 @@ pub enum Insn
     cell_get,
 
     // Create class instance
-    new { class_id: ClassId, argc: u16 },
+    new { class_id: ClassId, argc: u8 },
+
+    // Create a class instance with a known number of slots and constructor
+    new_known_ctor { class_id: ClassId, argc: u8, num_slots: u16, ctor_pc: u32, fun_id: FunId, num_locals: u16 },
 
     // Check if instance of class
     instanceof { class_id: ClassId },
@@ -143,21 +146,24 @@ pub enum Insn
     jump { target_ofs: i32 },
 
     // Call a host function
-    //call_host { host_fn: HostFn, argc: u16 },
+    //call_host { host_fn: HostFn, argc: u8 },
 
     // Call a function using the call stack
     // call (arg0, arg1, ..., argN)
-    call { argc: u16 },
+    call { argc: u8 },
 
     // Call a known function using its function id
-    call_direct { fun_id: FunId, argc: u16 },
+    call_direct { fun_id: FunId, argc: u8 },
 
     // Call a known function by directly jumping to its entry point
-    call_pc { entry_pc: u32, fun_id: FunId, num_locals: u16, argc: u16 },
+    call_pc { entry_pc: u32, fun_id: FunId, num_locals: u16, argc: u8 },
 
     // Call a method on an object
     // call_method (self, arg0, ..., argN)
-    call_method { name: *const String, argc: u16 },
+    call_method { name: *const String, argc: u8 },
+
+    // Call a method with a previously known pc
+    call_method_pc { name: *const String, argc: u8, class_id: ClassId, entry_pc: u32, fun_id: FunId, num_locals: u16 },
 
     // Return
     ret,
@@ -468,7 +474,7 @@ struct StackFrame
     fun: Value,
 
     // Argument count (number of args supplied)
-    argc: u16,
+    argc: u8,
 
     // Previous base pointer at the time of call
     prev_bp: usize,
@@ -1450,16 +1456,54 @@ impl Actor
                     let obj = Object::new(class_id, num_slots);
                     let obj_val = Value::Object(self.alloc.alloc(obj));
 
-                    let init_fun = self.get_method(class_id, "init");
-
                     // If a constructor method is present
+                    let init_fun = self.get_method(class_id, "init");
                     if let Some(fun_id) = init_fun {
-                        // The self value should be first on the stack
-                        self.stack.insert(self.stack.len() - argc as usize, obj_val);
-                        call_fun!(Value::Fun(fun_id), argc + 1);
-                    }
+                        let this_pc = pc - 1;
 
-                    push!(obj_val);
+                        // The self value should be first argument to the constructor
+                        // The constructor also returns the allocated object
+                        self.stack.insert(self.stack.len() - argc as usize, obj_val);
+                        let ctor_entry = call_fun!(Value::Fun(fun_id), argc + 1);
+
+                        // Patch the instruction to avoid lookups next time
+                        self.insns[this_pc] = Insn::new_known_ctor {
+                            class_id,
+                            argc,
+                            num_slots: num_slots.try_into().unwrap(),
+                            ctor_pc: ctor_entry.entry_pc as u32,
+                            fun_id,
+                            num_locals: ctor_entry.num_locals.try_into().unwrap(),
+                        };
+                    } else {
+                        // Return the allocated object
+                        push!(obj_val);
+                    }
+                }
+
+                Insn::new_known_ctor { class_id, argc, num_slots, ctor_pc, fun_id, num_locals } => {
+                    // Allocate the object
+                    let obj = Object::new(class_id, num_slots as usize);
+                    let obj_val = Value::Object(self.alloc.alloc(obj));
+
+                    // The self value should be first argument to the constructor
+                    // The constructor also returns the allocated object
+                    self.stack.insert(self.stack.len() - argc as usize, obj_val);
+
+                    // We add an extra argument for the self value
+                    self.frames.push(StackFrame {
+                        argc: argc + 1,
+                        fun: Value::Fun(fun_id),
+                        prev_bp: bp,
+                        ret_addr: pc,
+                    });
+
+                    // The base pointer will point at the first local
+                    bp = self.stack.len();
+                    pc = ctor_pc as usize;
+
+                    // Allocate stack slots for the local variables
+                    self.stack.resize(self.stack.len() + num_locals as usize, Value::Nil);
                 }
 
                 Insn::instanceof { class_id } => {
@@ -1662,19 +1706,66 @@ impl Actor
                     let method_name = unsafe { &*name };
                     let self_val = self.stack[self.stack.len() - (1 + argc as usize)];
 
-                    let fun = match self_val {
+                    match self_val {
                         Value::Object(p) => {
                             let obj = unsafe { &*p };
                             let fun_id = self.get_method(obj.class_id, &method_name).unwrap();
-                            Value::Fun(fun_id)
+
+                            let this_pc = pc - 1;
+                            let fun_entry = call_fun!(Value::Fun(fun_id), argc + 1);
+
+                            // Patch this instruction to avoid the method lookup next time
+                            self.insns[this_pc] = Insn::call_method_pc {
+                                name,
+                                argc: argc.try_into().unwrap(),
+                                class_id: obj.class_id,
+                                entry_pc: fun_entry.entry_pc.try_into().unwrap(),
+                                fun_id,
+                                num_locals: fun_entry.num_locals.try_into().unwrap(),
+                            };
                         }
 
                         _ => {
-                            crate::runtime::get_method(self_val, &method_name)
+                            let fun = crate::runtime::get_method(self_val, &method_name);
+                            call_fun!(fun, argc + 1);
                         }
                     };
+                }
 
-                    call_fun!(fun, argc + 1);
+                Insn::call_method_pc { name, argc, class_id, entry_pc, fun_id, num_locals } => {
+                    let self_val = self.stack[self.stack.len() - (1 + argc as usize)];
+
+                    // Guard that self is an object with a matching class id
+                    if let Value::Object(p_obj) = self_val {
+                        let obj = unsafe { &*p_obj };
+
+                        if obj.class_id == class_id {
+                            let argc: u8 = argc.into();
+                            self.frames.push(StackFrame {
+                                argc: argc + 1,
+                                fun: Value::Fun(fun_id),
+                                prev_bp: bp,
+                                ret_addr: pc,
+                            });
+
+                            // The base pointer will point at the first local
+                            bp = self.stack.len();
+                            pc = entry_pc as usize;
+
+                            // Allocate stack slots for the local variables
+                            self.stack.resize(self.stack.len() + num_locals as usize, Value::Nil);
+
+                            // Proceed with the call
+                            continue;
+                        }
+                    }
+
+                    // The guard fail, deoptimize this instruction and try again
+                    pc -= 1;
+                    self.insns[pc] = Insn::call_method {
+                        name,
+                        argc: argc.into(),
+                    };
                 }
 
                 Insn::ret => {
@@ -2275,6 +2366,22 @@ mod tests
         eval_eq("class Foo { init(s, a) { s.x = a; } } let o = Foo(7); return o.x;", Value::Int64(7));
         eval_eq("class Foo { init(s, a, b) { s.x = a; s.y = b; } } let o = Foo(5, 3); return o.x - o.y;", Value::Int64(2));
         eval_eq("class C { init(s) { s.c = 0; } inc(s) { ++s.c; } } let o = C(); o.inc(); return o.c;", Value::Int64(1));
+    }
+
+    #[test]
+    #[should_panic]
+    fn ctor_argc_mismatch()
+    {
+        // Passing an argument to a constructor that accepts none
+        eval("class Foo { init(s) {} } let o = Foo(1);");
+    }
+
+    #[test]
+    #[should_panic]
+    fn no_ctor_arg()
+    {
+        // Passing an argument to a non-existent constructor
+        eval("class Foo {} let o = Foo(1);");
     }
 
     #[test]
