@@ -38,6 +38,15 @@ fn init_sdl()
     }
 }
 
+pub fn with_sdl_context<F, R>(f: F) -> R
+where
+    F: FnOnce(&sdl2::Sdl) -> R,
+{
+    init_sdl();
+    let sdl_state = SDL_STATE.lock().unwrap();
+    f(sdl_state.sdl.as_ref().unwrap())
+}
+
 fn init_sdl_video()
 {
     init_sdl();

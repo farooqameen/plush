@@ -1,0 +1,544 @@
+
+// 808-style Drum Machine
+//
+// This example demonstrates procedural audio synthesis to create a simple
+// drum pattern with a kick, snare, hi-hat and bass synth.
+
+let SAMPLE_RATE = 44100;
+let TEMPO = 120.0; // BPM
+
+// --- Visualization State ---
+let VIS_WIDTH = 800;
+let VIS_HEIGHT = 300;
+
+let KICK_COLOR = 0xFF0000FF; // Blue
+let SNARE_COLOR = 0xFF00FF00; // Green
+let HAT_COLOR = 0xFFFFFF00; // Yellow
+let CLAP_COLOR = 0xFFFF00FF; // Magenta
+let BASS_COLOR = 0xFFFF0000; // Red
+
+let var kick_vis_amp = 0.0;
+let var snare_vis_amp = 0.0;
+let var hat_vis_amp = 0.0;
+let var clap_vis_amp = 0.0;
+let var bass_vis_amp = 0.0;
+
+let VIS_DECAY_RATE = 0.05; // How fast visual elements fade (per frame)
+let MIN_BRIGHTNESS = 0.5;
+
+// --- Sequencer Pattern ---
+// Each row is an instrument pattern across all steps.
+// pattern[0] = kick, pattern[1] = snare, pattern[2] = hi-hat, pattern[3] = clap
+let pattern = [
+    // Kick pattern
+    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+    // Snare pattern
+    [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+    // Hi-hat pattern
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    // Clap pattern
+    [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+
+    // Bass pattern
+    [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]
+];
+
+// --- Predefined Patterns ---
+let kick_patterns = [
+    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], // Four on the floor
+    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0], // 8th notes
+    [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0], // Syncopated
+    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0], // Simple kick
+    [0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0], // Driving kick
+];
+
+let snare_patterns = [
+    [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0], // On 2 and 4
+    [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0], // Off-beat clap (modified)
+    [0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1], // With ghost notes
+    [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0], // Simple snare
+    [0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0], // Snare roll
+];
+
+let hat_patterns = [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 16th notes
+    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0], // 8th notes
+    [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0], // Offbeats
+    [1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1], // Varied 16th
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1], // Off-beat 8th
+];
+
+let clap_patterns = [
+    [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0], // On 2 and 4
+    [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1], // Syncopated
+    [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0], // Simple clap
+    [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0], // Off-beat clap
+];
+
+let bass_patterns = [
+    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], // Four on the floor
+    [1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1], // Varied 16th
+    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0], // 8th notes
+    [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0], // Syncopated
+];
+
+// --- Pseudo-Random Number Generator (LCG) ---
+let var lcg_seed = 1;
+fun rand_init(seed) {
+    lcg_seed = seed & 0x7FFFFFFF;
+}
+
+fun rand_float() {
+    lcg_seed = (lcg_seed * 1103515245 + 12345) & 0x7FFFFFFF;
+    return (lcg_seed.to_f() / 0x7FFFFFFF.to_f()) * 2.0 - 1.0; // -1.0 to 1.0
+}
+
+fun rand_int(max_val) {
+    lcg_seed = (lcg_seed * 1103515245 + 12345) & 0x7FFFFFFF;
+    return lcg_seed % max_val;
+}
+
+// --- Synthesis State ---
+let PI = 3.1415926535;
+
+// Helper function to draw a rectangle using fill_u32 for efficiency
+fun draw_rect(buffer, x, y, width, height, color) {
+    let x_start = (0).max(x);
+    let y_start = (0).max(y);
+    let x_end = VIS_WIDTH.min(x + width);
+    let y_end = VIS_HEIGHT.min(y + height);
+
+    let clipped_width = x_end - x_start;
+
+    if (clipped_width <= 0) {
+        return;
+    }
+
+    for (let var j = y_start; j < y_end; ++j) {
+        let start_index = j * VIS_WIDTH + x_start;
+        buffer.fill_u32(start_index, clipped_width, color);
+    }
+}
+
+// Kick state
+let var kick_phase = 0.0;
+let var kick_amp_env = 0.0;
+let var kick_pitch_env = 0.0;
+let KICK_START_FREQ = 200.0;
+let KICK_END_FREQ = 50.0;
+let KICK_DECAY = 0.2; // seconds
+
+// Snare state
+let var snare_amp_env = 0.0;
+let var snare_noise = 0.0;
+let SNARE_DECAY = 0.15; // seconds
+
+// Snare tone component
+let var snare_tone_phase = 0.0;
+let var snare_tone_amp_env = 0.0;
+let var snare_tone_freq_env = 0.0;
+let SNARE_TONE_START_FREQ = 200.0;
+let SNARE_TONE_END_FREQ = 100.0;
+let SNARE_TONE_DECAY = 0.12; // seconds
+
+// Hi-hat state
+let var hat_amp_env = 0.0;
+let var hat_noise = 0.0;
+let HAT_DECAY = 0.05; // seconds
+
+// Clap state
+let CLAP_COUNT = 4; // Number of individual claps
+let CLAP_DELAY_SAMPLES = (0.008 * SAMPLE_RATE).floor(); // Delay between claps in samples
+let var clap_amp_envs = Array.with_size(CLAP_COUNT, 0.0);
+let var clap_noises = Array.with_size(CLAP_COUNT, 0.0);
+let CLAP_DECAY = 0.08; // seconds
+
+// Bass state
+let var bass_phase = 0.0;
+let var bass_amp_env = 0.0;
+let BASS_FREQ = 50; // Hz
+let BASS_DECAY = 0.30; // seconds
+
+// Bass LPF state
+let var bass_lpf_low = 0.0;
+let var bass_lpf_band = 0.0;
+let var bass_lpf_f = 0.0;
+let var bass_lpf_q = 0.0;
+let BASS_LPF_CUTOFF_FREQ = 4000.0; // Hz
+let BASS_LPF_RESONANCE = 0.5; // 0.0 to 1.0
+
+// --- Sequencer State ---
+let samples_per_step = ((60.0 / TEMPO) / 4.0 * SAMPLE_RATE).floor(); // 16th notes
+let var sample_in_step = 0;
+let var total_steps = 0;
+
+// Variables to track the last selected pattern index for each instrument
+let all_instrument_patterns = [kick_patterns, snare_patterns, hat_patterns, clap_patterns, bass_patterns];
+let instrument_names = ["Kick", "Snare", "Hi-hat", "Clap", "Bass"];
+
+let var clap_sample_counter = 0;
+
+// --- Pattern Mutation ---
+fun mutate_pattern() {
+    // 0: kick, 1: snare, 2: hat, 3: clap
+    let instrument_idx = rand_int(pattern.len);
+    let instrument_name = instrument_names[instrument_idx];
+    let available_patterns = all_instrument_patterns[instrument_idx];
+
+    // Pick a new pattern
+    while (available_patterns.len > 1) {
+        let new_pattern_idx = rand_int(available_patterns.len);
+        let new_pattern = available_patterns[new_pattern_idx];
+
+        // Ensure the new pattern is different from the last one
+        if (new_pattern != pattern[instrument_idx])
+        {
+            // Change the pattern for this instrument
+            pattern[instrument_idx] = new_pattern;
+            $println(instrument_name + " pattern changed to " + new_pattern_idx.to_s());
+            break;
+        }
+    }
+}
+
+// --- Main Synthesis and Sequencing Logic ---
+
+fun print_pattern(pattern)
+{
+    for (let var row = 0; row < pattern.len; ++row)
+    {
+        let row = pattern[row];
+        for (let var step = 0; step < row.len; ++ step)
+        {
+            if (row[step] != 0)
+                $print('X,');
+            else
+                $print(' ,');
+        }
+        $println('');
+    }
+}
+
+fun trigger_step(current_total_steps) {
+    let current_bar = (current_total_steps / 16).floor();
+    let step_idx = current_total_steps % 16;
+
+    let kick_on = pattern[0][step_idx];
+    let snare_on = pattern[1][step_idx];
+    let hat_on = pattern[2][step_idx];
+    let clap_on = pattern[3][step_idx];
+    let bass_on = pattern[4][step_idx];
+
+    if (kick_on == 1) {
+        kick_amp_env = 1.0;
+        kick_pitch_env = 1.0;
+        kick_vis_amp = 1.0;
+    }
+
+    if (current_bar >= 4) { // Start snare on bar 5
+        if (snare_on == 1) {
+            snare_amp_env = 1.0;
+            snare_tone_amp_env = 1.0;
+            snare_tone_freq_env = 1.0;
+            snare_vis_amp = 1.0;
+        }
+    }
+
+    if (current_bar >= 8) { // Start hi-hat on bar 9
+        if (hat_on == 1) {
+            hat_amp_env = 1.0;
+            hat_vis_amp = 1.0;
+        }
+    }
+
+    if (current_bar >= 12) { // Start clap on bar 13
+        if (clap_on == 1) {
+            for (let var i = 0; i < CLAP_COUNT; ++i) {
+                clap_amp_envs[i] = 1.0;
+            }
+            clap_vis_amp = 1.0;
+        }
+    }
+
+    if (current_bar >= 16) { // Start bass on bar 17
+        if (bass_on == 1) {
+            bass_amp_env = 1.0;
+            bass_vis_amp = 1.0;
+        }
+    }
+}
+
+fun generate_samples(num_samples) {
+    let samples = ByteArray.with_size(num_samples * 4); // 4 bytes per float32
+
+    for (let var i = 0; i < num_samples; ++i) {
+        // --- Sequencer ---
+        if (sample_in_step == 0) {
+            if (total_steps == 0) {
+                $println("Kick starts");
+            }
+            if (total_steps == 64) { // Bar 5
+                $println("Snare starts");
+            }
+            if (total_steps == 128) { // Bar 9
+                $println("Hi-hat starts");
+            }
+            if (total_steps == 192) { // Bar 13
+                $println("Clap starts");
+            }
+            if (total_steps == 256) { // Bar 17
+                $println("Bass starts");
+            }
+
+            // Mutate pattern every 4 bars, starting after all instruments are in
+            if (total_steps > 256 && total_steps % 64 == 0) {
+                mutate_pattern();
+            }
+
+            // Print bar number
+            if (total_steps % 16 == 0) {
+                let bar_num = (total_steps / 16).floor() + 1;
+                $println("Bar: " + bar_num.to_s());
+            }
+
+            if (total_steps % 64 == 0)
+            {
+                print_pattern(pattern);
+            }
+
+            trigger_step(total_steps);
+        }
+
+        // --- Synthesis ---
+        let var kick_sample = 0.0;
+        if (kick_amp_env > 0) {
+            let freq = KICK_END_FREQ + (kick_pitch_env * (KICK_START_FREQ - KICK_END_FREQ));
+            kick_phase = kick_phase + freq / SAMPLE_RATE;
+            if (kick_phase >= 1.0) {
+                kick_phase = kick_phase - 1.0;
+            }
+            kick_sample = (kick_phase * 2.0 * PI).sin() * kick_amp_env;
+
+            kick_amp_env = kick_amp_env - (1.0 / (KICK_DECAY * SAMPLE_RATE));
+            kick_pitch_env = kick_pitch_env - (1.0 / (KICK_DECAY * 0.5 * SAMPLE_RATE));
+            if (kick_amp_env < 0) { kick_amp_env = 0; }
+            if (kick_pitch_env < 0) { kick_pitch_env = 0; }
+        }
+
+        let var snare_sample = 0.0;
+        if (snare_amp_env > 0 || snare_tone_amp_env > 0) {
+            // Noise component
+            snare_noise = rand_float();
+            let noise_component = snare_noise * snare_amp_env;
+
+            // Tone component
+            let tone_freq = SNARE_TONE_END_FREQ + (snare_tone_freq_env * (SNARE_TONE_START_FREQ - SNARE_TONE_END_FREQ));
+            snare_tone_phase = snare_tone_phase + tone_freq / SAMPLE_RATE;
+            if (snare_tone_phase >= 1.0) {
+                snare_tone_phase = snare_tone_phase - 1.0;
+            }
+            let tone_component = (snare_tone_phase * 2.0 * PI).sin() * snare_tone_amp_env;
+
+            // Mix noise and tone
+            snare_sample = (noise_component * 0.7) + (tone_component * 0.3); // Adjust mix as needed
+
+            // Decay envelopes
+            snare_amp_env = snare_amp_env - (1.0 / (SNARE_DECAY * SAMPLE_RATE));
+            snare_tone_amp_env = snare_tone_amp_env - (1.0 / (SNARE_TONE_DECAY * SAMPLE_RATE));
+            snare_tone_freq_env = snare_tone_freq_env - (1.0 / (SNARE_TONE_DECAY * 0.5 * SAMPLE_RATE)); // Faster freq decay
+
+            if (snare_amp_env < 0) { snare_amp_env = 0; }
+            if (snare_tone_amp_env < 0) { snare_tone_amp_env = 0; }
+            if (snare_tone_freq_env < 0) { snare_tone_freq_env = 0; }
+        }
+
+        let var hat_sample = 0.0;
+        if (hat_amp_env > 0) {
+            hat_noise = rand_float();
+            hat_sample = hat_noise * hat_amp_env;
+            hat_amp_env = hat_amp_env - (1.0 / (HAT_DECAY * SAMPLE_RATE));
+            if (hat_amp_env < 0) { hat_amp_env = 0; }
+        }
+
+        let var clap_sample = 0.0;
+        let var any_clap_active = false;
+        for (let var i = 0; i < CLAP_COUNT; ++i) {
+            if (clap_amp_envs[i] > 0) {
+                any_clap_active = true;
+                let delay_offset = i * CLAP_DELAY_SAMPLES;
+                if (clap_sample_counter >= delay_offset) {
+                    // Generate new noise for each clap burst
+                    clap_noises[i] = rand_float();
+                    clap_sample = clap_sample + (clap_noises[i] * clap_amp_envs[i]);
+
+                    // Decay envelope
+                    clap_amp_envs[i] = clap_amp_envs[i] - (1.0 / (CLAP_DECAY * SAMPLE_RATE));
+                    if (clap_amp_envs[i] < 0) { clap_amp_envs[i] = 0; }
+                }
+            }
+        }
+        if (any_clap_active) {
+            clap_sample_counter = clap_sample_counter + 1;
+        } else {
+            clap_sample_counter = 0; // Reset when all claps are done
+        }
+
+        let var bass_sample = 0.0;
+        if (bass_amp_env > 0) {
+            bass_phase = bass_phase + BASS_FREQ / SAMPLE_RATE;
+            if (bass_phase >= 1.0) {
+                bass_phase = bass_phase - 1.0;
+            }
+            bass_sample = (2.0 * (bass_phase - 0.5)) * bass_amp_env;
+
+            // Calculate LPF coefficients (moved here for scope debugging)
+            let lpf_f = 2.0 * (PI * BASS_LPF_CUTOFF_FREQ / SAMPLE_RATE).sin();
+            let lpf_q = BASS_LPF_RESONANCE;
+
+            // Apply 2-pole resonant LPF
+            bass_lpf_low = bass_lpf_low + lpf_f * bass_lpf_band;
+            let high = bass_sample - bass_lpf_low - bass_lpf_band * lpf_q;
+            bass_lpf_band = bass_lpf_band + lpf_f * high;
+            bass_sample = bass_lpf_low;
+
+            bass_amp_env = bass_amp_env - (1.0 / (BASS_DECAY * SAMPLE_RATE));
+            if (bass_amp_env < 0) { bass_amp_env = 0; }
+        }
+
+        // --- Mixdown ---
+        let final_sample = (kick_sample * 0.8 + snare_sample * 0.5 + hat_sample * 0.2 + clap_sample * 0.4 + bass_sample * 0.8);
+        samples.write_f32(i, final_sample);
+
+        // --- Advance Sequencer ---
+        sample_in_step = sample_in_step + 1;
+        if (sample_in_step >= samples_per_step) {
+            sample_in_step = 0;
+            total_steps = total_steps + 1;
+        }
+    }
+
+    return samples;
+}
+
+// Helper function to convert RGB values to a 32-bit color
+fun rgb32(r, g, b) {
+    return 0xFF_00_00_00 | (r << 16) | (g << 8) | b;
+}
+
+// Helper function to adjust the brightness of a color
+fun adjust_brightness(color, intensity) {
+    let r = (color _/ (1 << 16)) & 0xFF;
+    let g = (color _/ (1 << 8)) & 0xFF;
+    let b = color & 0xFF;
+
+    let new_r = (r.to_f() * intensity).floor().min(255);
+    let new_g = (g.to_f() * intensity).floor().min(255);
+    let new_b = (b.to_f() * intensity).floor().min(255);
+
+    return rgb32(new_r, new_g, new_b);
+}
+
+fun draw_visualization(frame_buffer) {
+    // Clear the background
+    draw_rect(frame_buffer, 0, 0, VIS_WIDTH, VIS_HEIGHT, rgb32(20, 20, 20)); // Dark gray background
+
+    let element_width = VIS_WIDTH _/ 5;
+    let element_height = VIS_HEIGHT;
+
+    let base_size_ratio = 0.5;
+    let max_extra_size_ratio = 0.4;
+
+    // Draw Kick visual
+    let kick_size_float = element_width.to_f() * base_size_ratio + element_width.to_f() * max_extra_size_ratio * kick_vis_amp;
+    let kick_size = kick_size_float.floor();
+    let kick_x = (element_width * 0) + (element_width _/ 2 - kick_size _/ 2);
+    let kick_y = element_height _/ 2 - kick_size _/ 2;
+    let kick_brightness = MIN_BRIGHTNESS + (1.0 - MIN_BRIGHTNESS) * kick_vis_amp;
+    draw_rect(frame_buffer, kick_x, kick_y, kick_size, kick_size, adjust_brightness(KICK_COLOR, kick_brightness));
+
+    // Draw Snare visual
+    let snare_size_float = element_width.to_f() * base_size_ratio + element_width.to_f() * max_extra_size_ratio * snare_vis_amp;
+    let snare_size = snare_size_float.floor();
+    let snare_x = (element_width * 1) + (element_width _/ 2 - snare_size _/ 2);
+    let snare_y = element_height _/ 2 - snare_size _/ 2;
+    let snare_brightness = MIN_BRIGHTNESS + (1.0 - MIN_BRIGHTNESS) * snare_vis_amp;
+    draw_rect(frame_buffer, snare_x, snare_y, snare_size, snare_size, adjust_brightness(SNARE_COLOR, snare_brightness));
+
+    // Draw Hi-hat visual
+    let hat_size_float = element_width.to_f() * base_size_ratio + element_width.to_f() * max_extra_size_ratio * hat_vis_amp;
+    let hat_size = hat_size_float.floor();
+    let hat_x = (element_width * 2) + (element_width _/ 2 - hat_size _/ 2);
+    let hat_y = element_height _/ 2 - hat_size _/ 2;
+    let hat_brightness = MIN_BRIGHTNESS + (1.0 - MIN_BRIGHTNESS) * hat_vis_amp;
+    draw_rect(frame_buffer, hat_x, hat_y, hat_size, hat_size, adjust_brightness(HAT_COLOR, hat_brightness));
+
+    // Draw Clap visual
+    let clap_size_float = element_width.to_f() * base_size_ratio + element_width.to_f() * max_extra_size_ratio * clap_vis_amp;
+    let clap_size = clap_size_float.floor();
+    let clap_x = (element_width * 3) + (element_width _/ 2 - clap_size _/ 2);
+    let clap_y = element_height _/ 2 - clap_size _/ 2;
+    let clap_brightness = MIN_BRIGHTNESS + (1.0 - MIN_BRIGHTNESS) * clap_vis_amp;
+    draw_rect(frame_buffer, clap_x, clap_y, clap_size, clap_size, adjust_brightness(CLAP_COLOR, clap_brightness));
+
+    // Draw Bass visual
+    let bass_size_float = element_width.to_f() * base_size_ratio + element_width.to_f() * max_extra_size_ratio * bass_vis_amp;
+    let bass_size = bass_size_float.floor();
+    let bass_x = (element_width * 4) + (element_width _/ 2 - bass_size _/ 2);
+    let bass_y = element_height _/ 2 - bass_size _/ 2;
+    let bass_brightness = MIN_BRIGHTNESS + (1.0 - MIN_BRIGHTNESS) * bass_vis_amp;
+    draw_rect(frame_buffer, bass_x, bass_y, bass_size, bass_size, adjust_brightness(BASS_COLOR, bass_brightness));
+
+    // Decay visual amplitudes
+    kick_vis_amp = (kick_vis_amp - VIS_DECAY_RATE).max(0.0);
+    snare_vis_amp = (snare_vis_amp - VIS_DECAY_RATE).max(0.0);
+    hat_vis_amp = (hat_vis_amp - VIS_DECAY_RATE).max(0.0);
+    clap_vis_amp = (clap_vis_amp - VIS_DECAY_RATE).max(0.0);
+    bass_vis_amp = (bass_vis_amp - VIS_DECAY_RATE).max(0.0);
+}
+
+// --- Main Program ---
+
+fun main() {
+    rand_init($time_current_ms());
+
+    // Create a window to allow graceful exit
+    let window = $window_create(VIS_WIDTH, VIS_HEIGHT, "Procedural Drum Machine", 0);
+    let frame_buffer = ByteArray.with_size(VIS_WIDTH * VIS_HEIGHT * 4); // Create frame buffer
+
+    // Initial draw to ensure window is ready
+    draw_visualization(frame_buffer);
+    $window_draw_frame(window, frame_buffer);
+    $actor_sleep(500);
+
+    // Open the audio device AFTER the first frame is drawn
+    let audio_dev = $audio_open_output(SAMPLE_RATE, 1); // 1 channel (mono)
+    if (audio_dev == nil) {
+        $println("Failed to open audio device.");
+        return;
+    }
+
+    $println("Playing drum pattern... Press ESC or close the window to exit.");
+
+    // Main event loop
+    loop {
+        let msg = $actor_recv();
+
+        if (msg instanceof AudioNeeded) {
+            // The audio driver needs more samples
+            let samples = generate_samples(msg.num_samples);
+            $audio_write_samples(audio_dev, samples);
+        }
+        else if (msg instanceof UIEvent) {
+            if (msg.kind == 'CLOSE_WINDOW' || (msg.kind == 'KEY_DOWN' && msg.key == 'ESCAPE')) {
+                $println('User closed window');
+                break;
+            }
+        }
+
+        // Draw visualization every frame
+        draw_visualization(frame_buffer);
+        $window_draw_frame(window, frame_buffer);
+    }
+}
+
+main();

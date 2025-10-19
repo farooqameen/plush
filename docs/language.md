@@ -49,6 +49,7 @@ Plush is a dynamically typed language and supports the following data types:
 -   **Array**: Ordered collections of values (e.g., `[1, 2, 3]`).
 -   **ByteArray**: Raw, mutable byte buffers.
 -   **Object**: Instances of classes.
+-   **Dictionaries**: Hash maps with string keys, like JS/Python/JSON (e.g., `{a:1, b: 2}`)
 
 ### Operators
 
@@ -154,6 +155,10 @@ These host functions are defined in [`src/host.rs`](/src/host.rs):
 -   `$actor_poll()`: Polls the actor's mailbox for a message, returning `nil` if empty.
 -   `$window_create(width, height, title, flags)`: Creates a new window.
 -   `$window_draw_frame(window_id, frame_buffer)`: Draws a frame buffer to the specified window.
+-   `$audio_open_output(sample_rate, num_channels)`: Opens an audio output device with the specified sample rate and number of channels. Returns a device ID.
+-   `$audio_write_samples(device_id, samples)`: Writes a `ByteArray` of `float32` audio samples to the specified audio device.
+-   `$audio_open_input(sample_rate, num_channels)`: Opens an audio input device with the specified sample rate and number of channels. Returns a device ID .
+-   `$audio_read_samples(device_id, num_samples, dst_ba, index)`: Reads `num_samples` of `float32` audio samples from the specified audio device into a destination `ByteArray` starting at `index`. This function blocks until enough samples are available.
 -   `$exit(code)`: End program execution and produce the given exit code.
 
 ### Core Methods
@@ -172,6 +177,7 @@ These host functions are defined in [`src/host.rs`](/src/host.rs):
     -   `tan()`: Returns the tangent of the float.
     -   `atan()`: Returns the arctangent of the float.
     -   `sqrt()`: Returns the square root of the float.
+    -   `pow(exp)`: Raise the value to the given power.
     -   `to_s()`: Returns a string representation of the float.
     -   `format_decimals(n)`: Produce a string representation with a given number of decimals.
     -   `min(other)`: Returns the minimum of this number and `other`.
@@ -190,6 +196,8 @@ These host functions are defined in [`src/host.rs`](/src/host.rs):
     -   `fill_u32(start_index, count, value)`: Fills a portion of the `ByteArray` with a repeated 32-bit unsigned integer value.
     -   `read_u32(index)`: Reads a 32-bit unsigned integer from the `ByteArray` at the given index.
     -   `write_u32(index, value)`: Writes a 32-bit unsigned integer to the `ByteArray` at the given index.
+    -   `read_f32(index)`: Reads a 32-bit float from the `ByteArray` at the given index.
+    -   `write_f32(index, value)`: Writes a 32-bit float to the `ByteArray` at the given index.
     -   `memcpy(dst_idx, src_bytes, src_idx, len)`: Copies a block of memory from a source `ByteArray` to this one.
     -   `zero_fill()`: Overwrite the contents of the `ByteArray` with zeros.
     -   `blit_bgra32(dst_width, dst_height, src, src_width, src_height, dst_x, dst_y)`: Copies a rectangular region from a source `ByteArray` into this `ByteArray` at a specified position, with alpha blending. This method assumes that both the source and destination buffers contain pixel data in the BGRA32 format.
@@ -214,10 +222,17 @@ This example spawns a new worker actor, sends it a message, and then waits for i
 ## Debugging
 
 At the moment there is no debugger and you may find that error messages are lackluster. Unsupported behaviors can
-result in Rust panics, sometimes without helpful messages. PRs to improve this are welcome.
+result in Rust panics, sometimes without helpful messages. I've been working on gradually improving the error
+messages to make Plush more user-friendly, but PRs to improve this are welcome.
 
 To help in debugging, you can print values with `$println()` and you can use the built in `assert()` statement to
-validate your assumptions.
+validate your assumptions. If you run into a Rust panic with not enough context, you can also run Plush with
+`RUST_BACKTRACE=1` to produce a backtrace,
+e.g.
+
+```
+RUST_BACKTRACE=1 cargo run my_program.psh
+```
 
 ## Manipulating Image Data
 

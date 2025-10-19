@@ -1,4 +1,4 @@
-let TILE_SIZE = 30;
+let TILE_SIZE = 50;
 
 // Convert RGB/RGBA values in the range [0, 255] to a u32 encoding
 fun rgb32(r, g, b)
@@ -26,54 +26,12 @@ class Image
     }
 
     // Copy a source image into this image at a given position
-    blit(self, src_img, dst_x, dst_y)
-    {
-        let var dst_x = dst_x;
-        let var dst_y = dst_y;
-        let var src_x = 0;
-        let var src_y = 0;
-        let var width = src_img.width;
-        let var height = src_img.height;
-
-        if (dst_x < 0)
-        {
-            src_x = -dst_x;
-            width = width + dst_x;
-            dst_x = 0;
-        }
-
-        if (dst_y < 0)
-        {
-            src_y = -dst_y;
-            height = height + dst_y;
-            dst_y = 0;
-        }
-
-        if (dst_x + width > self.width)
-        {
-            width = self.width - dst_x;
-        }
-
-        if (dst_y + height > self.height)
-        {
-            height = self.height - dst_y;
-        }
-
-        if (width <= 0 || height <= 0)
-        {
-            return;
-        }
-
-        // Number of bytes per row of the images
-        let dst_pitch = self.width * 4;
-        let src_pitch = src_img.width * 4;
-
-        for (let var j = 0; j < height; ++j)
-        {
-            let src_idx = (src_y + j) * src_pitch + src_x * 4;
-            let dst_idx = (dst_y + j) * dst_pitch + dst_x * 4;
-            self.bytes.memcpy(dst_idx, src_img.bytes, src_idx, width * 4);
-        }
+    blit(self, src_img, dst_x, dst_y) {
+        self.bytes.blit_bgra32(
+            self.width, self.height,
+            src_img.bytes, src_img.width, src_img.height,
+            dst_x, dst_y
+        );
     }
 }
 
@@ -307,18 +265,12 @@ fun actor_loop()
 }
 
 // Multi-actor, parallel rendering
-fun render()
+fun render(num_actors, width, height)
 {
-    let num_actors = 32;
-
     // Create the actors
     let actor_ids = [];
     for (let var i = 0; i < num_actors; ++i)
         actor_ids.push($actor_spawn(actor_loop));
-
-    // Image settings
-    let width = 400;
-    let height = 300;
 
     // Camera setup
     let camera = Camera(width, height);
@@ -375,12 +327,8 @@ fun render()
 }
 
 // Single-threaded rendering
-fun render_no_tile()
+fun render_no_tile(width, height)
 {
-    // Image settings
-    let width = 400;
-    let height = 300;
-
     // Camera setup
     let camera = Camera(width, height);
 
@@ -395,11 +343,24 @@ fun render_no_tile()
     return img;
 }
 
-// Run the renderer
-let image = render_no_tile();
-//let image = render();
+// Set the number of actors
+let var num_actors = 16;
+if ($cmd_get_arg(1) != nil) num_actors = $cmd_get_arg(1).parse_int(10);
 
-let window = $window_create(image.width, image.height, "Render", 0);
+// Screen setup
+let var frame_width = 400;
+let var frame_height = 300;
+if ($cmd_get_arg(2) != nil) frame_width = $cmd_get_arg(2).parse_int(10);
+if ($cmd_get_arg(3) != nil) frame_height = $cmd_get_arg(3).parse_int(10);
+
+// Run the renderer
+let var image = nil;
+if (num_actors > 1)
+    image = render(num_actors, frame_width, frame_height);
+else
+    image = render_no_tile(frame_width, frame_height);
+
+let window = $window_create(image.width, image.height, "Raytracer Example", 0);
 $window_draw_frame(window, image.bytes);
 
 loop

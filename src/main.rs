@@ -18,6 +18,7 @@ mod runtime;
 mod host;
 mod deepcopy;
 mod window;
+mod audio;
 mod exec_tests;
 
 extern crate sdl2;
@@ -157,7 +158,16 @@ fn main()
         Ok(_) => {}
     }
 
+    // If we're only validating the program without executing it
     if opts.no_exec {
+        // Generate code for all the functions to test
+        // that this works correctly
+        let mut code = vec![];
+        let mut alloc = crate::alloc::Alloc::new();
+        for (fun_id, fun) in prog.funs {
+            fun.gen_code(&mut code, &mut alloc).unwrap();
+        }
+
         return;
     }
 

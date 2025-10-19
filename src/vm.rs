@@ -187,7 +187,7 @@ pub struct Object
 
 impl Object
 {
-    fn new(class_id: ClassId, num_slots: usize) -> Self
+    pub fn new(class_id: ClassId, num_slots: usize) -> Self
     {
         Object {
             class_id,
@@ -216,7 +216,7 @@ impl Dict
         if let Some(val) = self.hash.get(field_name) {
             *val
         } else {
-            panic!();
+            panic!("key `{}` not found in dict", field_name);
         }
     }
 }
@@ -447,6 +447,12 @@ impl From<i64> for Value {
     }
 }
 
+impl From<f64> for Value {
+    fn from(val: f64) -> Self {
+        Value::Float64(val)
+    }
+}
+
 impl From<bool> for Value {
     fn from(val: bool) -> Self {
         match val {
@@ -498,7 +504,7 @@ pub struct Actor
     pub alloc: Alloc,
 
     // Allocator for incoming messages
-    msg_alloc: Arc<Mutex<Alloc>>,
+    pub msg_alloc: Arc<Mutex<Alloc>>,
 
     // Message queue receiver endpoint
     queue_rx: mpsc::Receiver<Message>,
@@ -610,10 +616,6 @@ impl Actor
     /// Send a message to another actor
     pub fn send(&mut self, actor_id: u64, msg: Value) -> Result<(), ()>
     {
-        //
-        // TODO: logic to copy objects
-        //
-
         // Lookup the queue endpoint in our local cache
         let mut actor_tx = self.actor_map.get(&actor_id);
 
@@ -676,7 +678,14 @@ impl Actor
 
         // Borrow the VM and clone the class
         let vm = self.vm.lock().unwrap();
-        let class = vm.prog.classes[&class_id].clone();
+
+        let class = vm.prog.classes.get(&class_id);
+
+        if class.is_none() {
+            panic!("could not find class with id={:?}", class_id);
+        }
+
+        let class = class.unwrap().clone();
         drop(vm);
 
         let ret = f(&class);
@@ -705,7 +714,8 @@ impl Actor
                         field_name,
                         c.name,
                         class_id,
-                        c.fields.keys().collect::<Vec<_>>())
+                        c.fields.keys().collect::<Vec<_>>()
+                    )
                 }
         })
     }
@@ -1411,13 +1421,11 @@ impl Actor
                     push!(val);
                 }
 
-                /*
                 // Create new empty dictionary
                 Insn::dict_new => {
                     let new_obj = self.alloc.alloc(Dict::default());
                     push!(Value::Dict(new_obj))
                 }
-                */
 
                 // Set object field
                 Insn::set_field { field, class_id, slot_idx } => {
@@ -1445,6 +1453,12 @@ impl Actor
                                 obj.slots[slot_idx] = val;
                             }
                         },
+
+                        Value::Dict(p) => {
+                            let dict = unsafe { &mut *p };
+                            dict.set(field_name, val);
+                        }
+
                         _ => panic!()
                     }
                 }
@@ -1567,6 +1581,11 @@ impl Actor
                             val
                         },
 
+                        Value::Dict(p) => {
+                            let dict = unsafe { &mut *p };
+                            dict.get(field_name)
+                        }
+
                         _ => panic!("get_field on non-object value {:?}", obj)
                     };
 
@@ -1574,18 +1593,32 @@ impl Actor
                 }
 
                 Insn::get_index => {
-                    let idx = pop!().unwrap_usize();
+                    let idx = pop!();
                     let mut arr = pop!();
 
                     let val = match arr {
                         Value::Array(p) => {
                             let arr = unsafe { &mut *p };
-                            arr.get(idx)
+                            let idx = idx.unwrap_i64();
+                            if idx < 0 {
+                                panic!("array index is negative");
+                            }
+                            arr.get(idx as usize)
                         }
 
                         Value::ByteArray(p) => {
                             let ba = unsafe { &mut *p };
-                            Value::from(ba.get(idx))
+                            let idx = idx.unwrap_i64();
+                            if idx < 0 {
+                                panic!("array index is negative");
+                            }
+                            Value::from(ba.get(idx as usize))
+                        }
+
+                        Value::Dict(p) => {
+                            let dict = unsafe { &mut *p };
+                            let key = idx.unwrap_rust_str();
+                            dict.get(key)
                         }
 
                         _ => panic!("expected array type in get_index")
@@ -1643,7 +1676,7 @@ impl Actor
                     match v {
                         Value::True => { pc = ((pc as i64) + (target_ofs as i64)) as usize }
                         Value::False => {}
-                        _ => panic!()
+                        _ => panic!("if_true instruction only accepts boolean values")
                     }
                 }
 
@@ -1654,7 +1687,7 @@ impl Actor
                     match v {
                         Value::False => { pc = ((pc as i64) + (target_ofs as i64)) as usize }
                         Value::True => {}
-                        _ => panic!("{:?}", v)
+                        _ => panic!("if_false instruction only accepts boolean values")
                     }
                 }
 
@@ -1798,6 +1831,7 @@ impl Actor
                     push!(ret_val);
                 }
 
+                #[allow(unreachable_patterns)]
                 _ => panic!("unknown opcode {:?}", insn)
             }
         }
@@ -1975,6 +2009,13 @@ impl VM
         );
 
         actor.call(Value::Fun(fun_id), &args)
+    }
+
+    /// Send a message to an actor without copying it to its message allocator
+    pub fn send_nocopy(&self, actor_id: u64, msg: Value) -> Result<(), ()>
+    {
+        let actor_tx = self.actor_txs.get(&actor_id).ok_or(())?;
+        actor_tx.sender.send(Message { sender: 0, msg }).map_err(|_| ())
     }
 }
 
@@ -2315,7 +2356,6 @@ mod tests
         eval_eq("let s1 = 'foo'; let s2 = 'bar'; return s1 + s2 == 'foobar';", Value::True);
     }
 
-    /*
     #[test]
     fn dicts()
     {
@@ -2323,8 +2363,9 @@ mod tests
         eval("let o = { x: 1, y: 2 };");
         eval_eq("let o = { x: 1, y: 2 }; return o.x;", Value::Int64(1));
         eval_eq("let o = { x: 1, y: 2 }; return o.x + o.y;", Value::Int64(3));
+        eval_eq("let o = { 'x': 77 }; return o.x;", Value::Int64(77));
+        eval_eq("let o = { 'foo bar': 5 }; return o['foo bar'];", Value::Int64(5));
     }
-    */
 
     #[test]
     fn arrays()

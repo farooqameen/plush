@@ -128,6 +128,13 @@ fn float64_max(actor: &mut Actor, v: Value, other: Value) -> Value
     Value::Float64(v.max(other))
 }
 
+fn float64_pow(actor: &mut Actor, v: Value, exponent: Value) -> Value
+{
+    let v = v.unwrap_f64();
+    let exponent = exponent.unwrap_f64();
+    Value::Float64(v.powf(exponent))
+}
+
 
 /// Create a single-character string from a codepoint integer value
 fn string_from_codepoint(actor: &mut Actor, _class: Value, codepoint: Value) -> Value
@@ -212,6 +219,7 @@ pub fn init_runtime(prog: &mut Program)
     audio_needed.id = AUDIO_NEEDED_ID;
     audio_needed.reg_field("num_samples");
     audio_needed.reg_field("num_channels");
+    audio_needed.reg_field("device_id");
     prog.reg_class(audio_needed);
 }
 
@@ -243,6 +251,7 @@ pub fn get_method(val: Value, method_name: &str) -> Value
     static FLOAT64_FORMAT_DECIMALS: HostFn = HostFn { name: "format_decimals", f: Fn2_1(float64_format_decimals) };
     static FLOAT64_MIN: HostFn = HostFn { name: "min", f: Fn2_1(float64_min) };
     static FLOAT64_MAX: HostFn = HostFn { name: "max", f: Fn2_1(float64_max) };
+    static FLOAT64_POW: HostFn = HostFn { name: "pow", f: Fn2_1(float64_pow) };
 
     static STRING_FROM_CODEPOINT: HostFn = HostFn { name: "from_codepoint", f: Fn2_1(string_from_codepoint) };
     static STRING_BYTE_AT: HostFn = HostFn { name: "byte_at", f: Fn2_1(string_byte_at) };
@@ -256,9 +265,11 @@ pub fn get_method(val: Value, method_name: &str) -> Value
 
     static BA_NEW: HostFn = HostFn { name: "new", f: Fn1_1(ba_new) };
     static BA_WITH_SIZE: HostFn = HostFn { name: "with_size", f: Fn2_1(ba_with_size) };
+    static BA_FILL_U32: HostFn = HostFn { name: "fill_u32", f: Fn4_0(ba_fill_u32) };
     static BA_READ_U32: HostFn = HostFn { name: "read_u32", f: Fn2_1(ba_read_u32) };
     static BA_WRITE_U32: HostFn = HostFn { name: "write_u32", f: Fn3_0(ba_write_u32) };
-    static BA_FILL_U32: HostFn = HostFn { name: "fill_u32", f: Fn4_0(ba_fill_u32) };
+    static BA_READ_F32: HostFn = HostFn { name: "read_f32", f: Fn2_1(ba_read_f32) };
+    static BA_WRITE_F32: HostFn = HostFn { name: "write_f32", f: Fn3_0(ba_write_f32) };
     static BA_MEMCPY: HostFn = HostFn { name: "memcpy", f: Fn5_0(ba_memcpy) };
     static BA_ZERO_FILL: HostFn = HostFn { name: "zero_fill", f: Fn1_0(ba_zero_fill) };
     static BA_BLIT_BGRA32: HostFn = HostFn { name: "blit_bgra32", f: Fn8_0(ba_blit_bgra32) };
@@ -284,6 +295,7 @@ pub fn get_method(val: Value, method_name: &str) -> Value
         (Value::Float64(_), "format_decimals") => &FLOAT64_FORMAT_DECIMALS,
         (Value::Float64(_), "min") => &FLOAT64_MIN,
         (Value::Float64(_), "max") => &FLOAT64_MAX,
+        (Value::Float64(_), "pow") => &FLOAT64_POW,
 
         (Value::Class(STRING_ID), "from_codepoint") => &STRING_FROM_CODEPOINT,
         (Value::String(_), "byte_at") => &STRING_BYTE_AT,
@@ -297,9 +309,11 @@ pub fn get_method(val: Value, method_name: &str) -> Value
 
         (Value::Class(BYTEARRAY_ID), "new") => &BA_NEW,
         (Value::Class(BYTEARRAY_ID), "with_size") => &BA_WITH_SIZE,
+        (Value::ByteArray(_), "fill_u32") => &BA_FILL_U32,
         (Value::ByteArray(_), "read_u32") => &BA_READ_U32,
         (Value::ByteArray(_), "write_u32") => &BA_WRITE_U32,
-        (Value::ByteArray(_), "fill_u32") => &BA_FILL_U32,
+        (Value::ByteArray(_), "read_f32") => &BA_READ_F32,
+        (Value::ByteArray(_), "write_f32") => &BA_WRITE_F32,
         (Value::ByteArray(_), "memcpy") => &BA_MEMCPY,
         (Value::ByteArray(_), "zero_fill") => &BA_ZERO_FILL,
         (Value::ByteArray(_), "blit_bgra32") => &BA_BLIT_BGRA32,

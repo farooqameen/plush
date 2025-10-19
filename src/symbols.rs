@@ -162,6 +162,7 @@ impl Program
         env.define("ByteArray", Decl::Class { id: BYTEARRAY_ID });
         env.define("UIEvent", Decl::Class { id: UIEVENT_ID });
         env.define("AudioNeeded", Decl::Class { id: AUDIO_NEEDED_ID });
+        env.define("AudioData", Decl::Class { id: AUDIO_DATA_ID });
 
         // Process the unit function
         let mut main_unit = std::mem::take(&mut self.main_unit);
@@ -298,7 +299,7 @@ impl StmtBox
                     _ => {
                         if env.has_local(var_name) {
                             return ParseError::with_pos(
-                                &format!("local with name `{}` already exists", var_name),
+                                &format!("local variable with name `{}` already exists", var_name),
                                 &self.pos
                             );
                         }
@@ -390,6 +391,13 @@ impl ExprBox
                 }
                 else
                 {
+                    if name == "null" {
+                        return ParseError::with_pos(
+                            "there is no `null` value in plush, use `nil` instead",
+                            &self.pos
+                        );
+                    }
+
                     return ParseError::with_pos(
                         &format!("reference to unknown identifier `{}`", name),
                         &self.pos
@@ -415,7 +423,7 @@ impl ExprBox
                     *class_id = id;
                 } else {
                     return ParseError::with_pos(
-                        "could not match class name for instanceof",
+                        &format!("could not match class name `{}` for instanceof", class_name),
                         &self.pos
                     );
                 }
